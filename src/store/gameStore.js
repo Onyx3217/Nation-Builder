@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { DEFAULT_WORLD_COUNTRIES } from '../data/defaultWorld'
 import { FICTIONAL_WORLD_COUNTRIES } from '../data/fictionalWorld'
+import { applyFiscalEffects, settleFiscalPeriod, withFiscalProfile } from '../engine/fiscalEngine'
 
 // ─── Default settings ──────────────────────────────────────────────────────
 const defaultSettings = {
@@ -24,6 +25,9 @@ const defaultCountry = {
   // Real macroeconomic indicators
   gdpPerCapita: 28000,   // Real GDP per capita in USD
   gdpNominal: 840,       // Nominal GDP in Billions USD: (30M * 28k) / 1e9 = $840B
+  treasury: 33.6,
+  taxRevenuePct: 24,
+  governmentSpendingPct: 24,
   unemploymentRate: 5.6, // Taux de chômage (%)
   inflationRate: 2.3,   // Taux d'inflation (%)
   publicDebt: 64.0,      // Dette publique (% du PIB)
@@ -139,6 +143,9 @@ const PROJECT_STAT_LIMITS = {
   unemploymentRate: [1, 50],
   publicDebt: [0, 300],
   giniIndex: [18, 75],
+  treasury: [0, Number.POSITIVE_INFINITY],
+  taxRevenuePct: [5, 50],
+  governmentSpendingPct: [5, 60],
 }
 
 export const useGameStore = create(
@@ -325,10 +332,11 @@ export const useGameStore = create(
           }
 
           // Check if changes trigger a Game Over
-          const collapse = evaluateGameOver(updatedCountry)
+          const fiscalCountry = withFiscalProfile(updatedCountry)
+          const collapse = evaluateGameOver(fiscalCountry)
 
           return {
-            country: updatedCountry,
+            country: fiscalCountry,
             isGameOver: Boolean(collapse),
             gameOverReason: collapse || state.gameOverReason,
           }
@@ -476,7 +484,9 @@ export const useGameStore = create(
           }
 
           const updatedCountry = { ...cur, ...patch }
-          const collapse = evaluateGameOver(updatedCountry)
+          const fiscalEffects = applyFiscalEffects(updatedCountry, statDeltas)
+          const fiscalCountry = settleFiscalPeriod({ ...updatedCountry, ...fiscalEffects }, elapsedDays)
+          const collapse = evaluateGameOver(fiscalCountry)
           const completionNews = completedProjects.map((project) => ({
             headline: `${project.language === 'fr' ? 'Projet achevé' : 'Project completed'} : ${project.title}`,
             body: project.objective,
@@ -488,7 +498,7 @@ export const useGameStore = create(
             day: nextDay,
             dailyDirectivesRemaining: crossedMonth ? 5 : state.dailyDirectivesRemaining,
             dailyEventInjectionsRemaining: crossedMonth ? 2 : state.dailyEventInjectionsRemaining,
-            country: updatedCountry,
+            country: fiscalCountry,
             projects,
             newsFeed: [...completionNews, ...(state.newsFeed || [])].slice(0, 80),
             isGameOver: Boolean(collapse),
@@ -521,7 +531,8 @@ export const useGameStore = create(
           })
           const worldCountries = [...uniqueCountries.values()]
             .map((item) => withEstimatedForces(item, relations[item.id]))
-          const country = withEstimatedForces({ ...defaultCountry, ...(gameData.country || {}) })
+          const rawCountry = gameData.country || {}
+          const country = withEstimatedForces(withFiscalProfile({ ...defaultCountry, ...rawCountry }, rawCountry))
           const day = Math.max(1, Math.round(Number(gameData.day ?? gameData.turn) || 1))
           const collapse = evaluateGameOver(country)
           const music = gameData.music || {}
@@ -592,10 +603,13 @@ export const useGameStore = create(
     }),
     {
       name: 'nation-builder-save-v5',
-      version: 6,
+      version: 7,
       migrate: (persistedState) => {
         const safeState = { ...persistedState }
         delete safeState.groqApiKey
+        if (safeState.country) {
+          safeState.country = withFiscalProfile({ ...defaultCountry, ...safeState.country }, safeState.country)
+        }
         return safeState
       },
       partialize: (state) => ({

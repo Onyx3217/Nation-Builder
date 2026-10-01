@@ -337,10 +337,10 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
 
         {/* SVG World Map */}
         <ComposableMap
-          preserveAspectRatio={isBackground && !isMobile ? 'xMidYMid slice' : 'xMidYMid meet'}
+          preserveAspectRatio="xMidYMid meet"
           projectionConfig={{
             rotate: [-10, 0, 0],
-            scale: isBackground && isMobile ? 180 : 145,
+            scale: isBackground ? (isMobile ? 180 : 130) : 145,
           }}
           className="w-full h-full cursor-grab active:cursor-grabbing"
         >

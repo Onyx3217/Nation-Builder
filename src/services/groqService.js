@@ -1,5 +1,6 @@
 import { parseTimeSimulation } from '../ai/schemas'
 import { resolveTurnProposal } from '../engine/turnEngine'
+import { calculateNominalGdpBillions, deriveFiscalMetrics } from '../engine/fiscalEngine'
 import { TIME_SIMULATION_CONTRACT, TIME_SIMULATION_PROMPT_VERSION } from '../ai/prompts/timeSimulation.v1'
 
 const GROQ_API_URL = '/api/groq'
@@ -353,6 +354,7 @@ export async function getAiCabinetAdvice({
   language = 'fr',
 }) {
   const isFrench = language === 'fr'
+  const fiscal = deriveFiscalMetrics(playerCountry)
   const settingRule = worldMode === 'fictional'
     ? 'This is an invented world. Treat its supplied history, institutions, and technologies as real within the setting. Do not compare them with Earth or contemporary real-world technology.'
     : 'This is a contemporary real-world simulation. Assess technology against present-day real-world capabilities.'
@@ -434,7 +436,9 @@ FEASIBILITY & MATERIAL CONSTRAINTS:
 - In the real-world setting, never present unavailable technology as deployable. If a proposal exceeds present-day technology or the nation's means, do not apply effects or claim implementation; explain the constraint and offer feasible research, procurement, or phased alternatives.
 - In the fictional setting, use only capabilities established by the world and nation data. A resource name alone does not imply advanced technology.
 
-For an actual order, assess plausible consequences using the current game state. Return only non-zero stat changes, within these bounds: stability +/-35, globalReputation +/-30, militaryTension +/-35, gdpPerCapita +/-5000, inflationRate +/-15, unemploymentRate +/-8, publicDebt +/-25, giniIndex +/-8. Do not apply effects for a question.
+For an actual order, assess plausible consequences using the current game state. Return only non-zero stat changes, within these bounds: stability +/-35, globalReputation +/-30, militaryTension +/-35, gdpPerCapita +/-5000, inflationRate +/-15, unemploymentRate +/-8, publicDebt +/-25, giniIndex +/-8, treasury +/-${Math.max(1, Math.round(fiscal.gdpNominalBillions * 0.05))} billion USD, taxRevenuePct +/-3 percentage points, governmentSpendingPct +/-3 percentage points. Treasury deltas are one-off flows; revenue and spending rate changes are recurring. Keep a coherent relation between decisions, costs, tax revenue, spending, debt and cash. Do not apply effects for a question.
+- Public finances: treasury $${fiscal.treasuryBillions.toFixed(1)}B; annual revenue $${fiscal.annualRevenueBillions.toFixed(1)}B; primary spending $${fiscal.annualPrimarySpendingBillions.toFixed(1)}B; debt interest $${fiscal.annualInterestBillions.toFixed(1)}B at an estimated ${fiscal.interestRatePct.toFixed(1)}%; annual balance $${fiscal.annualBalanceBillions.toFixed(1)}B; revenue ${fiscal.taxRevenuePct}% and spending ${fiscal.governmentSpendingPct}% of GDP.
+- Armed forces: ${Number(playerCountry.activePersonnel || 0).toLocaleString()} active personnel, ${Number(playerCountry.deployedPersonnel || 0).toLocaleString()} deployed, ${Number(playerCountry.reservePersonnel || 0).toLocaleString()} reserves, ${Number(playerCountry.mobilizedReservePersonnel || 0).toLocaleString()} mobilized reservists; defense spending ${playerCountry.defenseBudgetPct ?? 'unknown'}% of GDP${playerCountry.militaryFiguresEstimated ? ' (simulation estimates)' : ''}
 
 If the order describes a long-term program with staged implementation (for example, building infrastructure, reforming education, or modernizing the armed forces), return it as a project. Keep statEffects empty and put only feasible effects that happen on completion in project.statEffects. Estimate baseDurationDays from its actual scale, before political delays. Dictatorships and military juntas can move faster through centralized approvals; democracies and federations take longer for consultation and oversight. Do not turn a simple immediate decree into a project.
 
@@ -550,6 +554,7 @@ CRITICAL EMERGENCY BRAKE RULE:
   * "crisisSummary": ""
   * "recommendedActions": []
 
+Public finance at the start: treasury $${fiscal.treasuryBillions.toFixed(1)}B; annual revenue $${fiscal.annualRevenueBillions.toFixed(1)}B; primary spending $${fiscal.annualPrimarySpendingBillions.toFixed(1)}B; interest $${fiscal.annualInterestBillions.toFixed(1)}B; annual balance $${fiscal.annualBalanceBillions.toFixed(1)}B. A one-day deficit should reduce treasury by only its proportional daily amount.
 Calculate cumulative, restrained macroeconomic drift scaled to the elapsed days (a one-day period should usually have near-zero change):
 {
   "stability": <small cumulative change>,
@@ -558,7 +563,10 @@ Calculate cumulative, restrained macroeconomic drift scaled to the elapsed days 
   "gdpPerCapita": <cumulative change>,
   "inflationRate": <cumulative change>,
   "unemploymentRate": <cumulative change>,
-  "publicDebt": <cumulative change>
+  "publicDebt": <cumulative change>,
+  "treasury": <one-off cash change in billions USD, usually zero>,
+  "taxRevenuePct": <recurring public revenue rate change in GDP percentage points, usually zero>,
+  "governmentSpendingPct": <recurring spending rate change in GDP percentage points, usually zero>
 }
 Scale the number of news events to the period, not per day: zero to two for up to 90 days, zero to four for 91-364 days, and zero to eight for a year or more. Date every event within the interval and avoid duplicate headlines. Summarize quiet periods honestly rather than inventing crises.
 Foreign reactions:
@@ -615,8 +623,10 @@ Simulate the timeframe and evaluate if the crisis brake is triggered.`,
       currentDay,
       daysToSkip,
       countryIds: worldCountries.map((country) => country.id),
+      countryIds: worldCountries.map((country) => country.id),
       playerCountryId: playerCountry.sourceCountryId,
       relations,
+      gdpNominalBillions: calculateNominalGdpBillions(playerCountry),
     })
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       const requestedDays = Math.max(1, Number(daysToSkip) || 1)
@@ -633,6 +643,9 @@ Simulate the timeframe and evaluate if the crisis brake is triggered.`,
         inflationRate: 2,
         unemploymentRate: 1.5,
         publicDebt: 2,
+        taxRevenuePct: 0.8,
+        governmentSpendingPct: 0.8,
+        treasury: calculateNominalGdpBillions(playerCountry) * 0.01,
       }
       const statDeltas = Object.fromEntries(Object.entries(statLimitsPerMonth).flatMap(([key, monthlyLimit]) => {
         const value = Number(parsed.statDeltas?.[key])

@@ -10,6 +10,9 @@ export const statDeltasSchema = z.object({
   inflationRate: z.number().finite().optional(),
   unemploymentRate: z.number().finite().optional(),
   publicDebt: z.number().finite().optional(),
+  treasury: z.number().finite().optional(),
+  taxRevenuePct: z.number().finite().optional(),
+  governmentSpendingPct: z.number().finite().optional(),
 }).strict()
 
 export const timeSimulationSchema = z.object({

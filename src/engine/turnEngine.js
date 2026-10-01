@@ -6,6 +6,8 @@ const LIMITS_PER_30_DAYS = {
   inflationRate: 2,
   unemploymentRate: 1.5,
   publicDebt: 2,
+  taxRevenuePct: 0.8,
+  governmentSpendingPct: 0.8,
 }
 
 export function clamp(value, min, max) {
@@ -16,7 +18,7 @@ export function clamp(value, min, max) {
  * Validates a narrated AI proposal against code-owned game rules.
  * No AI value is applied without a known key, a finite number and a time-scaled cap.
  */
-export function resolveTurnProposal(proposal, { currentDay, daysToSkip, countryIds, playerCountryId, relations = {} }) {
+export function resolveTurnProposal(proposal, { currentDay, daysToSkip, countryIds, playerCountryId, relations = {}, gdpNominalBillions = 0 }) {
   if (!proposal) return null
   const requestedDays = Math.max(1, Math.round(Number(daysToSkip) || 1))
   const interruptedEarly = requestedDays > 1 && proposal.interruptedEarly
@@ -24,7 +26,11 @@ export function resolveTurnProposal(proposal, { currentDay, daysToSkip, countryI
     ? clamp(proposal.interruptedAtDay, currentDay + 1, currentDay + requestedDays)
     : currentDay + requestedDays
   const elapsedDays = endDay - currentDay
-  const statDeltas = Object.fromEntries(Object.entries(LIMITS_PER_30_DAYS).flatMap(([stat, perMonth]) => {
+  const monthlyLimits = {
+    ...LIMITS_PER_30_DAYS,
+    treasury: Math.max(0, Number(gdpNominalBillions) || 0) * 0.01,
+  }
+  const statDeltas = Object.fromEntries(Object.entries(monthlyLimits).flatMap(([stat, perMonth]) => {
     const proposed = Number(proposal.statDeltas?.[stat])
     if (!Number.isFinite(proposed)) return []
     const cap = perMonth * elapsedDays / 30
