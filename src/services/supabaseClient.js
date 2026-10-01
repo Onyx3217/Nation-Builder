@@ -11,8 +11,35 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase =
   supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
+    ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+      },
+    })
     : null
 
 /** True when Supabase is properly configured */
 export const hasSupabase = Boolean(supabase)
+
+let sessionPromise = null
+
+export async function ensureSupabaseSession() {
+  if (!supabase) return null
+
+  const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+  if (data.session?.user) return data.session
+
+  if (!sessionPromise) {
+    sessionPromise = supabase.auth.signInAnonymously().then(({ data: signInData, error: signInError }) => {
+      if (signInError) throw signInError
+      return signInData.session
+    }).finally(() => {
+      sessionPromise = null
+    })
+  }
+
+  return sessionPromise
+}

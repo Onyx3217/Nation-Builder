@@ -43,19 +43,17 @@ export default function NationPlacementMap({ coordinates, worldCountries, isFict
   const [mapPosition, setMapPosition] = useState({ coordinates: [0, 0], zoom: 1 })
   const changeZoom = (amount) => setMapPosition((position) => ({
     ...position,
-    zoom: Math.max(1, Math.min(4, Number((position.zoom + amount).toFixed(1)))),
+    zoom: Math.max(1, Math.min(10, Number((position.zoom + amount).toFixed(1)))),
   }))
   const handleMapClick = (event, featureName = null) => {
     const svg = event.currentTarget.ownerSVGElement || event.currentTarget
     if (!svg) return
-    const bounds = svg.getBoundingClientRect()
-    const viewBox = svg.viewBox.baseVal
-    const x = ((event.clientX - bounds.left) / bounds.width) * viewBox.width
-    const y = ((event.clientY - bounds.top) / bounds.height) * viewBox.height
-    const mapX = viewBox.width / 2 + (x - viewBox.width / 2) / mapPosition.zoom
-    const mapY = viewBox.height / 2 + (y - viewBox.height / 2) / mapPosition.zoom
-    const longitude = mapPosition.coordinates[0] + ((mapX - viewBox.width / 2) / SCALE) * (180 / Math.PI)
-    const latitude = mapPosition.coordinates[1] + ((viewBox.height / 2 - mapY) / SCALE) * (180 / Math.PI)
+    const zoomableGroup = svg.querySelector('.rsm-zoomable-group')
+    const transform = zoomableGroup?.getScreenCTM()
+    if (!transform) return
+    const mapPoint = new DOMPoint(event.clientX, event.clientY).matrixTransform(transform.inverse())
+    const longitude = ((mapPoint.x - WIDTH / 2) / SCALE) * (180 / Math.PI)
+    const latitude = ((HEIGHT / 2 - mapPoint.y) / SCALE) * (180 / Math.PI)
     if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || Math.abs(longitude) > 180 || Math.abs(latitude) > 85) return
 
     const matchedCountry = !isFictional && featureName
@@ -101,10 +99,10 @@ export default function NationPlacementMap({ coordinates, worldCountries, isFict
       </div>
 
       <div className="relative overflow-hidden border-2 border-emerald-500/50 bg-[#020b12] shadow-[inset_0_0_32px_rgba(16,185,129,0.12)]">
-        <div className="absolute right-2 top-2 z-10 flex gap-1 rounded-lg border border-slate-500/70 bg-slate-950/90 p-1 shadow-xl">
-          <button type="button" onClick={() => changeZoom(0.5)} className="grid h-9 w-9 place-items-center rounded-md text-white hover:bg-emerald-600" aria-label={isFrench ? 'Agrandir la carte' : 'Zoom in'}><ZoomIn size={17} /></button>
+        <div className="absolute right-2 top-2 z-10 flex gap-1 border border-slate-500/70 bg-slate-950/95 p-1 shadow-xl">
+          <button type="button" onClick={() => changeZoom(1)} className="grid h-10 w-10 place-items-center text-white hover:bg-emerald-700" aria-label={isFrench ? 'Agrandir la carte' : 'Zoom in'}><ZoomIn size={17} /></button>
           <button type="button" onClick={() => changeZoom(-0.5)} className="grid h-9 w-9 place-items-center rounded-md text-white hover:bg-emerald-600" aria-label={isFrench ? 'Réduire la carte' : 'Zoom out'}><ZoomOut size={17} /></button>
-          <button type="button" onClick={() => setMapPosition({ coordinates: [0, 0], zoom: 1 })} className="grid h-9 w-9 place-items-center rounded-md text-white hover:bg-emerald-600" aria-label={isFrench ? 'Réinitialiser la carte' : 'Reset map'}><RotateCcw size={16} /></button>
+          <button type="button" onClick={() => setMapPosition({ coordinates: [0, 0], zoom: 1 })} className="grid h-10 w-10 place-items-center text-white hover:bg-slate-700" aria-label={isFrench ? 'Réinitialiser la carte' : 'Reset map'}><RotateCcw size={16} /></button>
         </div>
         <ComposableMap
           width={WIDTH}
@@ -116,7 +114,7 @@ export default function NationPlacementMap({ coordinates, worldCountries, isFict
           role="img"
           aria-label={isFrench ? 'Carte interactive pour choisir un emplacement' : 'Interactive map to choose a location'}
         >
-          <ZoomableGroup center={mapPosition.coordinates} zoom={mapPosition.zoom} minZoom={1} maxZoom={4} onMoveEnd={(position) => setMapPosition({ coordinates: position.coordinates, zoom: position.zoom })}>
+          <ZoomableGroup center={mapPosition.coordinates} zoom={mapPosition.zoom} minZoom={1} maxZoom={10} translateExtent={[[0, 0], [WIDTH, HEIGHT]]} onMoveEnd={(position) => setMapPosition({ coordinates: position.coordinates, zoom: position.zoom })}>
           <Geographies geography={geographyUrl}>
             {({ geographies }) => {
               return (
@@ -148,8 +146,10 @@ export default function NationPlacementMap({ coordinates, worldCountries, isFict
                     )
                   })}
                   <Marker coordinates={coordinates}>
-                    <circle r={11} fill="rgba(251,191,36,0.28)" stroke="#fef3c7" strokeWidth={0.8} />
-                    <circle r={4.5} fill="#f59e0b" stroke="#ffffff" strokeWidth={1.8} />
+                    <g transform={`scale(${1 / mapPosition.zoom})`}>
+                      <circle r={5.5} fill="none" stroke="#fef3c7" strokeWidth={0.8} />
+                      <circle r={2.4} fill="#f59e0b" stroke="#ffffff" strokeWidth={0.9} />
+                    </g>
                   </Marker>
                 </g>
               )

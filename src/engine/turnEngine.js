@@ -16,7 +16,7 @@ export function clamp(value, min, max) {
  * Validates a narrated AI proposal against code-owned game rules.
  * No AI value is applied without a known key, a finite number and a time-scaled cap.
  */
-export function resolveTurnProposal(proposal, { currentDay, daysToSkip, countryIds }) {
+export function resolveTurnProposal(proposal, { currentDay, daysToSkip, countryIds, playerCountryId, relations = {} }) {
   if (!proposal) return null
   const requestedDays = Math.max(1, Math.round(Number(daysToSkip) || 1))
   const interruptedEarly = requestedDays > 1 && proposal.interruptedEarly
@@ -33,11 +33,24 @@ export function resolveTurnProposal(proposal, { currentDay, daysToSkip, countryI
   const knownIds = new Set(countryIds)
   const contactLimit = elapsedDays >= 365 ? 4 : elapsedDays >= 91 ? 2 : 1
   const senders = new Set()
-  const incomingDiplomacy = (elapsedDays >= 7 ? proposal.incomingDiplomacy : [])
-    .filter((item) => knownIds.has(item.countryId) && !senders.has(item.countryId))
+  const incomingDiplomacy = (proposal.incomingDiplomacy || [])
+    .filter((item) => knownIds.has(item.countryId) && item.countryId !== playerCountryId && !senders.has(item.countryId))
     .slice(0, contactLimit)
     .map((item) => {
       senders.add(item.countryId)
+      return item
+    })
+  const relationLimit = elapsedDays >= 365 ? 4 : elapsedDays >= 91 ? 3 : elapsedDays >= 30 ? 2 : 1
+  const changedCountries = new Set()
+  const relationChanges = (proposal.relationChanges || [])
+    .filter((item) => knownIds.has(item.countryId)
+      && item.countryId !== playerCountryId
+      && ['ally', 'friendly', 'neutral', 'tense', 'hostile', 'war'].includes(item.relation)
+      && (relations[item.countryId] || 'neutral') !== item.relation
+      && !changedCountries.has(item.countryId))
+    .slice(0, relationLimit)
+    .map((item) => {
+      changedCountries.add(item.countryId)
       return item
     })
   const eventLimit = elapsedDays >= 365 ? 8 : elapsedDays >= 91 ? 4 : 2
@@ -45,5 +58,5 @@ export function resolveTurnProposal(proposal, { currentDay, daysToSkip, countryI
     ...event,
     turn: clamp(event.turn, currentDay + 1, endDay),
   }))
-  return { ...proposal, interruptedEarly, interruptedAtDay: endDay, statDeltas, incomingDiplomacy, events }
+  return { ...proposal, interruptedEarly, interruptedAtDay: endDay, statDeltas, incomingDiplomacy, relationChanges, events }
 }

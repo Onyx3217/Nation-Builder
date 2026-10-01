@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, memo } from 'react'
+import { useState, useMemo, useEffect, useSyncExternalStore, memo } from 'react'
 import {
   ComposableMap,
   Geographies,
@@ -9,10 +9,21 @@ import {
   Marker,
 } from 'react-simple-maps'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ZoomIn, ZoomOut, RotateCcw, MessageSquare, Anchor, Shield, Navigation } from 'lucide-react'
+import { ZoomIn, ZoomOut, RotateCcw, MessageSquare, Anchor, Navigation } from 'lucide-react'
 
 const REAL_GEO_URL = '/world-countries.json'
 const FICTIONAL_GEO_URL = '/fictional-world.json'
+const MOBILE_MEDIA_QUERY = '(max-width: 639px)'
+
+function subscribeToMobileLayout(onChange) {
+  const media = window.matchMedia(MOBILE_MEDIA_QUERY)
+  media.addEventListener('change', onChange)
+  return () => media.removeEventListener('change', onChange)
+}
+
+function getMobileLayout() {
+  return typeof window !== 'undefined' && window.matchMedia(MOBILE_MEDIA_QUERY).matches
+}
 
 // Dedicated oceanic sanctuary coordinates so custom player nations never overlap landmasses
 const oceanPlayerSectors = {
@@ -118,9 +129,9 @@ function normalizeCountryName(value = '') {
   return aliases[normalized] || normalized
 }
 
-function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, focusedCountry, worldMode = 'real', isFrench = true, isBackground = false }) {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches)
-  const [position, setPosition] = useState(() => ({ coordinates: [10, 20], zoom: 1 }))
+function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, focusedCountry, worldMode = 'real', isFrench = true, isBackground = false, isPanelOpen = false }) {
+  const isMobile = useSyncExternalStore(subscribeToMobileLayout, getMobileLayout, () => false)
+  const [position, setPosition] = useState({ coordinates: [10, 20], zoom: 1 })
   const [hoveredCountry, setHoveredCountry] = useState(null)
   const isFictionalWorld = worldMode === 'fictional'
   const geographyUrl = isFictionalWorld ? FICTIONAL_GEO_URL : REAL_GEO_URL
@@ -131,16 +142,9 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
   }
 
   // Zoom controls
-  const handleZoomIn = () => setPosition((pos) => ({ ...pos, zoom: Math.min(pos.zoom * 1.5, 6) }))
+  const handleZoomIn = () => setPosition((pos) => ({ ...pos, zoom: Math.min(pos.zoom * 1.5, 8) }))
   const handleZoomOut = () => setPosition((pos) => ({ ...pos, zoom: Math.max(pos.zoom / 1.5, 1) }))
   const handleResetZoom = () => setPosition({ coordinates: [10, 20], zoom: 1 })
-
-  useEffect(() => {
-    const media = window.matchMedia('(max-width: 639px)')
-    const updateMobileLayout = (event) => setIsMobile(event.matches)
-    media.addEventListener('change', updateMobileLayout)
-    return () => media.removeEventListener('change', updateMobileLayout)
-  }, [])
 
   // Sovereign oceanic placement for player country
   const playerCoordinates = useMemo(() => {
@@ -315,7 +319,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
         </AnimatePresence>
 
         {/* Geopolitical Legend */}
-        <div className={`absolute ${isBackground ? 'bottom-[calc(max(24vh,8rem)+0.5rem)] md:bottom-4' : 'bottom-4'} left-2 z-20 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-x-3 gap-y-1 border border-slate-500/80 bg-slate-950/90 px-2.5 py-2 text-[10px] sm:left-4 sm:gap-3 sm:px-3.5 sm:text-[11px]`}>
+        {!isPanelOpen && <div className={`absolute ${isBackground ? 'bottom-16 md:bottom-4' : 'bottom-4'} left-2 z-20 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-x-3 gap-y-1 border border-slate-500/80 bg-slate-950/90 px-2.5 py-2 text-[10px] sm:left-4 sm:gap-3 sm:px-3.5 sm:text-[11px]`}>
           <span className="flex items-center gap-1 text-amber-400 font-bold">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_#f59e0b]" />
             {isFictionalWorld ? (isFrench ? 'Votre nation' : 'Your realm') : (isFrench ? 'Votre pays' : 'Your country')}
@@ -329,20 +333,23 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
           <span className="flex items-center gap-1 text-red-400">
             <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" /> {isFrench ? 'Hostiles' : 'Hostile'}
           </span>
-        </div>
+        </div>}
 
         {/* SVG World Map */}
         <ComposableMap
           preserveAspectRatio={isBackground && !isMobile ? 'xMidYMid slice' : 'xMidYMid meet'}
           projectionConfig={{
             rotate: [-10, 0, 0],
-            scale: isBackground && isMobile ? 112 : 145,
+            scale: isBackground && isMobile ? 180 : 145,
           }}
           className="w-full h-full cursor-grab active:cursor-grabbing"
         >
           <ZoomableGroup
             zoom={position.zoom}
             center={position.coordinates}
+            minZoom={1}
+            maxZoom={8}
+            translateExtent={[[0, 0], [800, 600]]}
             onMoveEnd={(pos) => setPosition(pos)}
           >
             <Sphere stroke="rgba(59, 130, 246, 0.12)" strokeWidth={1} fill="transparent" />
@@ -417,7 +424,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
                     onMouseEnter={() => setHoveredCountry(c)}
                   >
                     {/* Tight, non-overlapping clickable hitbox */}
-                    <circle r={Math.max(isMobile ? 7 : 4, 7 / Math.sqrt(position.zoom))} fill="transparent" />
+                    <circle r={Math.max(isMobile ? 5 : 4, 6 / Math.sqrt(position.zoom))} fill="transparent" />
 
                     {/* Targeting beacon only if searched or focused */}
                     {isFocused && (
@@ -429,7 +436,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
 
                     {/* Tiny subtle radar dot */}
                     <circle
-                      r={isFocused ? 6 : isHovered ? 5 : isMobile ? 3.4 : position.zoom >= 2.5 ? 3 : 2.5}
+                      r={isFocused ? 5 : isHovered ? 4 : isMobile ? 2.5 : position.zoom >= 2.5 ? 2.8 : 2.2}
                       fill={colorConfig.fill}
                       stroke={isFocused || isHovered ? '#ffffff' : 'rgba(255,255,255,0.95)'}
                       strokeWidth={isFocused || isHovered ? 1.5 : 1}

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '../store/gameStore'
 import { getAiCabinetAdvice } from '../services/groqService'
@@ -182,11 +182,9 @@ export default function AiCabinetModal({ isOpen, onClose, onForwardDiplomacy }) 
     requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }))
   }, [history, loading, isOpen])
 
-  useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100)
-    }
-  }, [isOpen])
+  useLayoutEffect(() => {
+    if (isOpen && !loading) inputRef.current?.focus({ preventScroll: true })
+  }, [isOpen, loading, history.length])
 
   const executeDirective = async (directiveText) => {
     if (!directiveText.trim()) return
@@ -309,7 +307,7 @@ export default function AiCabinetModal({ isOpen, onClose, onForwardDiplomacy }) 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/85 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 backdrop-blur-sm md:p-6">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -624,6 +622,8 @@ export default function AiCabinetModal({ isOpen, onClose, onForwardDiplomacy }) 
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               type="submit"
+              aria-label={t('cabinet_submit', lang)}
+              title={t('cabinet_submit', lang)}
               disabled={loading || !input.trim()}
               className="px-5 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl text-xs font-bold flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(245,158,11,0.25)]"
             >

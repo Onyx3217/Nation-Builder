@@ -73,7 +73,6 @@ export default function World() {
     addWorldEvent,
     worldEvents,
     activeResolutions,
-    dailyEventInjectionsRemaining,
     projects,
     incomingDiplomacy,
     queueDiplomaticContact,
@@ -105,6 +104,7 @@ export default function World() {
   const [sideTab, setSideTab] = useState('countries')
   const [viewMode, setViewMode] = useState('map') // 'map' | 'grid' | 'press'
   const isMapOverview = viewMode === 'map'
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState(null)
   const [diplomacyOpen, setDiplomacyOpen] = useState(false)
   const [diplomacyInput, setDiplomacyInput] = useState('')
@@ -224,17 +224,15 @@ export default function World() {
     setTimeSkipMenuOpen(false)
     setTurnLoading(true)
     try {
-      const result = daysToSkip < 7
-        ? { interruptedEarly: false, statDeltas: {}, events: [], incomingDiplomacy: [] }
-        : await simulateTimePassage({
-          playerCountry: country,
-          worldCountries,
-          relations,
-          daysToSkip,
-          currentDay: day,
-          language: lang,
-          worldMode,
-        })
+      const result = await simulateTimePassage({
+        playerCountry: country,
+        worldCountries,
+        relations,
+        daysToSkip,
+        currentDay: day,
+        language: lang,
+        worldMode,
+      })
 
       const elapsedDays = result.interruptedEarly
         ? Math.max(1, (result.interruptedAtDay || (day + 1)) - day)
@@ -258,6 +256,26 @@ export default function World() {
           result.events.forEach((ev) => addNews({ ...ev, turn: ev.turn || effectiveDay }))
         }
       }
+
+      const nextRelations = { ...relations }
+      let relationChangeCount = 0
+      ;(result.relationChanges || []).forEach((change) => {
+        const target = worldCountries.find((item) => item.id === change.countryId)
+        if (!target || nextRelations[target.id] === change.relation) return
+        nextRelations[target.id] = change.relation
+        relationChangeCount += 1
+        setRelation(target.id, change.relation)
+        addNews({
+          headline: isFrench
+            ? `${target.name} ${change.relation === 'war' ? 'déclare la guerre' : change.relation === 'ally' || change.relation === 'friendly' ? 'se rapproche de votre pays' : change.relation === 'hostile' ? 'durcit sa position' : 'réoriente sa position diplomatique'}`
+            : `${target.name} ${change.relation === 'war' ? 'declares war' : change.relation === 'ally' || change.relation === 'friendly' ? 'moves closer to your country' : change.relation === 'hostile' ? 'hardens its stance' : 'shifts its diplomatic position'}`,
+          body: isFrench
+            ? `La relation bilatérale évolue de « ${relations[target.id] || 'neutre'} » à « ${change.relation} » après les derniers développements.`
+            : `The bilateral relationship shifts from ${relations[target.id] || 'neutral'} to ${change.relation} following recent developments.`,
+          type: 'diplomatic',
+          turn: effectiveDay,
+        })
+      })
 
       ;(result.incomingDiplomacy || []).forEach((contact) => {
         const target = worldCountries.find((item) => item.id === contact.countryId)
@@ -289,8 +307,8 @@ export default function World() {
         })
       }
 
-      if (daysToSkip >= 30 || result.events?.length || result.incomingDiplomacy?.length || result.interruptedEarly || randomEv) {
-        await fetchPress(worldCountries, relations, effectiveDay)
+      if (daysToSkip >= 30 || result.events?.length || result.incomingDiplomacy?.length || relationChangeCount || result.interruptedEarly || randomEv) {
+        await fetchPress(worldCountries, nextRelations, effectiveDay)
       }
       const currentProjects = useGameStore.getState().projects || []
       const completedProjects = currentProjects.filter((project) =>
@@ -301,10 +319,10 @@ export default function World() {
         toDay: effectiveDay,
         elapsedDays,
         periodReport: result.periodReport || '',
-        eventCount: (result.events?.length || 0) + (result.incomingDiplomacy?.length || 0) + Number(Boolean(randomEv)) + Number(Boolean(result.interruptedEarly)),
+        eventCount: (result.events?.length || 0) + (result.incomingDiplomacy?.length || 0) + relationChangeCount + Number(Boolean(randomEv)) + Number(Boolean(result.interruptedEarly)),
         activeProjects: currentProjects.filter((project) => project.status === 'active').length,
         completedProjects: completedProjects.map((project) => project.title),
-        calm: !result.interruptedEarly && !result.events?.length && !result.incomingDiplomacy?.length && !randomEv && !completedProjects.length,
+        calm: !result.interruptedEarly && !result.events?.length && !result.incomingDiplomacy?.length && !relationChangeCount && !randomEv && !completedProjects.length,
       })
     } catch (err) {
       console.error(err)
@@ -315,6 +333,7 @@ export default function World() {
   }
 
   const handleOpenDiplomacy = (target) => {
+    setIsSidebarOpen(false)
     setSelectedCountry(target)
     setDiplomacyOpen(true)
     setDiplomacyHistory((diplomaticHistory[target.id] || []).slice(-20))
@@ -357,7 +376,7 @@ export default function World() {
         type: 'diplomatic',
         turn: day,
       })
-      if (!fromCouncil) advanceDays(1)
+      if (!fromCouncil) await handleAdvanceDays(1)
       return { targetName: target.name, response: result.response }
     } catch (err) {
       setDiplomacyHistory((h) => [...h, { role: 'error', text: err.message }])
@@ -559,29 +578,6 @@ export default function World() {
             <span className="hidden xl:inline">{isFrench ? 'Projets' : 'Projects'}</span>
           </button>
 
-          {/* Event Injector Button (Max 2 per 30-day period) */}
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setEventInjectorOpen(true)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
-              dailyEventInjectionsRemaining > 0
-                ? 'bg-red-500/15 border-red-500/40 text-red-300 hover:bg-red-500/25 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
-                : 'bg-slate-800/60 border-slate-700 text-slate-500 opacity-60'
-            }`}
-            title={
-              isFrench
-                ? `Injecteur d'événements géopolitiques majeurs (${dailyEventInjectionsRemaining}/2 pour cette période)`
-                : `Major geopolitical event injector (${dailyEventInjectionsRemaining}/2 this period)`
-            }
-          >
-            <Flame size={14} className={dailyEventInjectionsRemaining > 0 ? 'text-red-400 animate-pulse' : 'text-slate-500'} />
-            <span className="hidden sm:inline">{isFrench ? 'Injecteur' : 'Injector'}</span>
-            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-red-950/60 border border-red-500/30 text-red-300">
-              {dailyEventInjectionsRemaining}/2
-            </span>
-          </motion.button>
-
           <button
             onClick={() => setCloudModalOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 glass rounded-xl border border-slate-700 hover:border-blue-500/50 text-slate-300 hover:text-white text-xs font-medium transition-all"
@@ -688,15 +684,13 @@ export default function World() {
         focusedCountry={focusedCountry}
         worldMode={worldMode}
         isFrench={isFrench}
+        isPanelOpen={isSidebarOpen}
         isBackground
       />
 
       {/* Main Container */}
       <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 overflow-hidden">
-        {/* Left Playfield */}
-        <div className={`pointer-events-auto absolute left-2 right-2 min-w-0 space-y-3 overflow-y-auto border border-slate-600/80 bg-slate-950/88 p-2.5 shadow-xl backdrop-blur-lg sm:left-3 sm:right-3 sm:top-3 sm:p-4 ${isMapOverview
-          ? 'top-2 max-h-[28vh] sm:max-h-[32vh] md:relative md:inset-auto md:h-full md:max-h-none md:w-[min(26rem,34vw)] md:flex-none md:space-y-4 md:border-y-0 md:border-l-0 md:border-r md:border-slate-600/80 md:bg-slate-950/78 md:p-4'
-          : 'bottom-2 top-2 max-h-none space-y-4 bg-slate-950/94 sm:bottom-3 md:relative md:inset-auto md:h-full md:w-full md:flex-1 md:max-w-5xl md:space-y-4 md:bg-slate-950/92 md:p-5'} ${isMapOverview ? '' : 'mx-auto md:mr-auto'} `}>
+        {!isMapOverview && <div className="pointer-events-auto absolute bottom-2 left-2 right-2 top-2 mx-auto min-w-0 max-w-5xl space-y-4 overflow-y-auto border border-slate-600/80 bg-slate-950/94 p-2.5 shadow-xl backdrop-blur-lg sm:bottom-3 sm:left-3 sm:right-3 sm:top-3 sm:p-5 md:relative md:inset-auto md:h-full md:w-full md:flex-1">
           {/* Active Scenario Banner */}
           {country.initialScenario && (
             <div className="px-4 py-2.5 rounded-2xl border border-red-500/30 bg-red-950/20 flex items-center justify-between gap-3 text-xs">
@@ -983,127 +977,76 @@ export default function World() {
               )}
             </div>
           )}
-        </div>
+        </div>}
 
-        {/* Right Sidebar */}
-        {isMapOverview && <div className="pointer-events-auto absolute bottom-2 left-2 right-2 z-20 flex h-[24vh] min-h-32 flex-col border border-slate-600/80 bg-slate-950/90 shadow-xl backdrop-blur-xl md:relative md:inset-auto md:h-full md:min-h-0 md:w-80 md:flex-shrink-0 md:border-y-0 md:border-r-0 md:border-slate-600/80 md:bg-slate-950/88 lg:w-96">
-          {/* Sidebar Tabs */}
-          <div className="flex border-b border-slate-800/80 bg-slate-950/80">
-            {SIDEBAR_TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setSideTab(t.id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-all ${
-                  sideTab === t.id
-                    ? 'text-blue-400 border-b-2 border-blue-500 bg-blue-500/5'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {t.icon} {t.label}
+        {isMapOverview && isSidebarOpen && (
+          <div className="pointer-events-auto absolute bottom-20 left-2 right-2 top-2 z-20 flex min-h-0 flex-col border border-slate-500/90 bg-slate-950/95 shadow-2xl backdrop-blur-xl sm:left-auto sm:right-3 sm:w-96 md:bottom-3 md:top-32">
+            <div className="flex border-b border-slate-800/80 bg-slate-950/80">
+              {SIDEBAR_TABS.map((tab) => (
+                <button key={tab.id} type="button" aria-label={tab.label} onClick={() => setSideTab(tab.id)} className={`flex-1 py-3 text-xs font-semibold ${sideTab === tab.id ? 'border-b-2 border-blue-500 text-blue-300' : 'text-slate-400 hover:text-white'}`}>
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+              <button type="button" onClick={() => setIsSidebarOpen(false)} aria-label={isFrench ? 'Fermer les détails' : 'Close details'} className="min-h-11 px-3 text-slate-400 hover:text-white">
+                <X size={16} />
               </button>
-            ))}
-          </div>
+            </div>
 
-          {/* Sidebar Content */}
-          <div className="flex-1 overflow-auto p-4 space-y-4">
-            {sideTab === 'countries' && (
-              <div className="space-y-2">
-                <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold px-1">
-                  {t('world_diplo_index', lang, { n: worldCountries.length })}
-                </p>
-                {worldCountries.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => handleOpenDiplomacy(c)}
-                    className="w-full text-left flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-800/60 border border-transparent hover:border-slate-700/60 transition-all"
-                  >
-                    <span className="text-xl flex-shrink-0">{c.flag}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-white truncate">{c.name}</p>
-                      <p className="text-[10px] text-slate-400 truncate">
-                        {t(`regime_${c.regime?.replace(/\s+/g, '_')}`, lang) || c.regime} · {c.continent}
-                      </p>
-                    </div>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                        relations[c.id] === 'ally'
-                          ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/30'
-                          : relations[c.id] === 'hostile' || relations[c.id] === 'war'
-                          ? 'text-red-400 bg-red-500/10 border border-red-500/30'
-                          : 'text-slate-400 bg-slate-800 border border-slate-700'
-                      }`}
-                    >
-                      {t(`rel_${relations[c.id] || 'neutral'}`, lang)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {sideTab === 'news' && (
-              <div>
-                <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold px-1 mb-3">
-                  {t('world_intel_feed', lang)}
-                </p>
-                <NewsFeed items={newsFeed} />
-              </div>
-            )}
-
-            {sideTab === 'stats' && (
-              <div className="space-y-4">
-                <StatCard
-                  label={t('world_stability', lang)}
-                  value={country.stability}
-                  locale={locale}
-                  icon="🏛️"
-                  color={country.stability > 50 ? 'green' : country.stability > 25 ? 'yellow' : 'red'}
-                  subtitle={isFrench ? 'Ordre civil & résilience institutionnelle' : 'Civil order & institutional resilience'}
-                />
-                <StatCard
-                  label={t('world_reputation', lang)}
-                  value={country.globalReputation}
-                  locale={locale}
-                  icon="🌐"
-                  color="blue"
-                  subtitle={isFrench ? 'Crédit diplomatique & puissance douce' : 'Diplomatic prestige & soft power'}
-                />
-                <StatCard
-                  label={t('world_tension', lang)}
-                  value={country.militaryTension}
-                  locale={locale}
-                  icon="⚔️"
-                  color={country.militaryTension > 65 ? 'red' : 'green'}
-                  subtitle={isFrench ? 'Risque de guerre armée frontalière' : 'Risk of regional armed conflict'}
-                />
-
-                {/* Comprehensive Macroeconomic Dossier */}
-                <div className="glass rounded-2xl p-4 space-y-3 border border-slate-800">
-                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    {t('world_dossier', lang)}
-                  </h4>
-                  {[
-                    [t('world_capital', lang), country.capital],
-                    [t('world_regime', lang), t(`regime_${country.regime?.replace(/\s+/g, '_')}`, lang) || country.regime],
-                    [t('econ_gdp_real', lang), `$${formatNumber(country.gdpPerCapita, 0)}`],
-                    [t('econ_gdp_nominal', lang), `$${formatNumber(country.gdpNominal || (country.population * country.gdpPerCapita) / 1e9)} ${isFrench ? 'Mds USD' : 'B USD'}`],
-                    [t('econ_unemployment', lang), `${formatNumber(country.unemploymentRate ?? 5.6)}%`],
-                    [t('econ_inflation', lang), `${formatNumber(country.inflationRate ?? 2.3)}%`],
-                    [t('econ_public_debt', lang), `${formatNumber(country.publicDebt ?? 64)}%`],
-                    [t('econ_gini', lang), formatNumber((country.giniIndex ?? 31) / 100, 2)],
-                    [t('econ_poverty', lang), `${formatNumber(country.povertyRate ?? 8.4)}%`],
-                    [t('world_military', lang), `${country.militaryPower} / 10`],
-                    [t('world_population', lang), `${formatNumber(country.population / 1e6)}M`],
-                    [t('world_urbanization', lang), `${formatNumber(country.urbanization, 0)}%`],
-                    [t('world_resources', lang), country.resources?.join(', ') || '—'],
-                  ].map(([k, v]) => (
-                    <div key={k} className="flex justify-between text-xs">
-                      <span className="text-slate-400">{k}</span>
-                      <span className="text-white font-medium font-mono">{v}</span>
-                    </div>
+            <div className="flex-1 space-y-4 overflow-auto p-3 sm:p-4">
+              {sideTab === 'countries' && (
+                <div className="space-y-2">
+                  <p className="px-1 text-[11px] font-semibold uppercase text-slate-400">{t('world_diplo_index', lang, { n: worldCountries.length })}</p>
+                  {worldCountries.map((item) => (
+                    <button key={item.id} type="button" onClick={() => handleOpenDiplomacy(item)} className="flex min-h-12 w-full items-center gap-3 border border-slate-700/70 px-3 py-2 text-left hover:border-sky-400 hover:bg-slate-900">
+                      <span className="text-xl">{item.flag}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-semibold text-white">{item.name}</span>
+                        <span className="block truncate text-[10px] text-slate-400">{item.regime} · {item.continent}</span>
+                      </span>
+                      <span className="text-[10px] text-slate-300">{t(`rel_${relations[item.id] || 'neutral'}`, lang)}</span>
+                    </button>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+
+              {sideTab === 'news' && <NewsFeed items={newsFeed} />}
+
+              {sideTab === 'stats' && (
+                <div className="space-y-3">
+                  <StatCard label={t('world_stability', lang)} value={country.stability} locale={locale} icon="🏛️" color={country.stability > 50 ? 'green' : country.stability > 25 ? 'yellow' : 'red'} subtitle={isFrench ? 'Ordre civil & résilience institutionnelle' : 'Civil order & institutional resilience'} />
+                  <StatCard label={t('world_reputation', lang)} value={country.globalReputation} locale={locale} icon="🌐" color="blue" subtitle={isFrench ? 'Crédit diplomatique & puissance douce' : 'Diplomatic prestige & soft power'} />
+                  <StatCard label={t('world_tension', lang)} value={country.militaryTension} locale={locale} icon="⚔️" color={country.militaryTension > 65 ? 'red' : 'green'} subtitle={isFrench ? 'Risque de guerre armée frontalière' : 'Risk of regional armed conflict'} />
+                  <div className="space-y-2 border-t border-slate-700 pt-3 text-xs">
+                    {[
+                      [t('world_capital', lang), country.capital],
+                      [t('world_regime', lang), country.regime],
+                      [t('econ_gdp_real', lang), `$${formatNumber(country.gdpPerCapita, 0)}`],
+                      [t('econ_inflation', lang), `${formatNumber(country.inflationRate ?? 2.3)}%`],
+                      [t('econ_public_debt', lang), `${formatNumber(country.publicDebt ?? 64)}%`],
+                      [t('world_military', lang), `${country.militaryPower}/10`],
+                    ].map(([label, value]) => <div key={label} className="flex justify-between gap-3"><span className="text-slate-400">{label}</span><span className="text-right text-white">{value}</span></div>)}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isMapOverview && <div className="pointer-events-auto absolute bottom-2 left-2 right-2 z-20 flex items-center justify-between gap-2 border border-slate-500/80 bg-slate-950/90 p-2 shadow-xl backdrop-blur-xl sm:left-3 sm:right-3 sm:bottom-3">
+          <div className="hidden items-center gap-3 px-2 text-[11px] sm:flex">
+            <span className="text-amber-300">{country.flag} {country.name}</span>
+            <span className="text-emerald-300">{Object.values(relations).filter((value) => value === 'ally' || value === 'friendly').length} {isFrench ? 'alliés' : 'allies'}</span>
+            <span className="text-red-300">{Object.values(relations).filter((value) => value === 'hostile' || value === 'war').length} {isFrench ? 'adversaires' : 'adversaries'}</span>
+          </div>
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:flex-none sm:gap-2">
+            {SIDEBAR_TABS.map((tab) => (
+              <button key={tab.id} type="button" aria-label={tab.label} onClick={() => { setSideTab(tab.id); setIsSidebarOpen(true) }} className="flex min-h-10 items-center gap-1.5 border border-slate-700 px-2.5 text-[11px] text-slate-200 transition-colors hover:border-sky-400 hover:bg-slate-800 sm:px-3 sm:text-xs">
+                {tab.icon}<span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            ))}
+            <button type="button" onClick={() => setViewMode('grid')} className="min-h-10 border border-slate-700 px-2.5 text-[11px] text-slate-200 hover:border-sky-400 hover:bg-slate-800 sm:px-3 sm:text-xs">
+              {isFrench ? 'Carte des nations' : 'Nation list'}
+            </button>
           </div>
         </div>}
       </div>
@@ -1125,17 +1068,23 @@ export default function World() {
       <EventInjectorModal
         isOpen={eventInjectorOpen}
         onClose={() => setEventInjectorOpen(false)}
+        onAdvanceDay={() => handleAdvanceDays(1)}
       />
 
       <ProjectsModal
         isOpen={projectsOpen}
         onClose={() => setProjectsOpen(false)}
+        onAdvanceDay={() => handleAdvanceDays(1)}
       />
 
       {/* Settings Modal */}
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        onOpenProtocolOverride={() => {
+          setSettingsOpen(false)
+          setEventInjectorOpen(true)
+        }}
       />
 
       {/* Emergency Crisis Brake Modal */}

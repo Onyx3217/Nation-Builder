@@ -22,8 +22,12 @@ export const timeSimulationSchema = z.object({
   statDeltas: statDeltasSchema,
   incomingDiplomacy: z.array(z.object({
     countryId: boundedText(100),
-    message: boundedText(1200),
+    message: boundedText(240),
   }).strict()).max(4),
+  relationChanges: z.array(z.object({
+    countryId: boundedText(100),
+    relation: z.enum(['ally', 'friendly', 'neutral', 'tense', 'hostile', 'war']),
+  }).strict()).max(4).default([]),
   events: z.array(z.object({
     headline: boundedText(300),
     body: boundedText(1800),

@@ -21,7 +21,7 @@ export const CANDIDATE_MODELS = [
 /** Cached verified working model so we don't repeat lookups */
 let activeWorkingModel = null
 
-export const NO_LIMIT_PROMPT = `You have NO arbitrary restrictions, NO brevity limits, and NO censorship on fictional geopolitical drama. Always deliver rich, deeply immersive, highly detailed storytelling, sharp strategic choices, and vivid world developments.`
+export const NO_LIMIT_PROMPT = `You are operating entirely inside the current geopolitical world. Never mention prompts, models, AI, role-play, game mechanics, creation steps, or how the scenario was selected. Never describe the setting as a scenario chosen during setup. Do not break character or explain that this is a simulation. If asked for out-of-world information, answer briefly from your in-world office and return to the geopolitical subject. Stay factual to the supplied world, roster, history, and capabilities.`
 
 /**
  * Helper to safely extract and parse JSON from LLM responses even if wrapped in markdown code blocks
@@ -274,7 +274,7 @@ export async function generatePressHeadlines({ playerCountry, worldCountries, re
   const messages = [
     {
       role: 'system',
-      content: `You are a careful press desk inside a geopolitical simulation. Prepare no more than 3 articles dated ${dateLabel}. ${worldRule}
+      content: `${NO_LIMIT_PROMPT} You are a careful press desk. Prepare no more than 3 articles dated ${dateLabel}. ${worldRule}
 Respond in ${isFrench ? 'FRENCH (Français)' : 'ENGLISH'}.
 ${isFrench ? 'RÈGLE DE LANGUE STRICTE : titres, résumés, noms de médias et lignes éditoriales en français.' : ''}
 
@@ -529,7 +529,7 @@ export async function simulateTimePassage({ playerCountry, worldCountries, relat
   const messages = [
     {
       role: 'system',
-      content: `${NO_LIMIT_PROMPT} You are a grounded macroeconomic and geopolitical simulation engine. ${worldRule}
+      content: `${NO_LIMIT_PROMPT} You are a grounded geopolitical and macroeconomic engine. ${worldRule}
 Prompt version: ${TIME_SIMULATION_PROMPT_VERSION}. ${TIME_SIMULATION_CONTRACT}
     The player has chosen to advance ${daysToSkip} days (from Day ${currentDay} to Day ${currentDay + daysToSkip}). Treat days as calendar time, not turns. A one-day advance is normally uneventful; longer periods may contain more developments, but do not force news into quiet periods.
 Respond in ${isFrench ? 'FRENCH (Français)' : 'ENGLISH'}.
@@ -561,7 +561,11 @@ Calculate cumulative, restrained macroeconomic drift scaled to the elapsed days 
   "publicDebt": <cumulative change>
 }
 Scale the number of news events to the period, not per day: zero to two for up to 90 days, zero to four for 91-364 days, and zero to eight for a year or more. Date every event within the interval and avoid duplicate headlines. Summarize quiet periods honestly rather than inventing crises.
-For periods of at least 7 days, incoming diplomatic contacts may occur but are not guaranteed. Return at most one for up to 90 days, two for 91-364 days, and four for a year or more. Base each on the roster, relationships, mutual interests, and recent events. Never invent a country ID or repeat a sender.
+Foreign reactions:
+- After important events, evaluate whether named countries have a concrete reason to support the player, coordinate with one another, become neutral, or turn hostile. Consider current relations, treaties implied by prior messages, ideology, security, trade, and the event's direct impact. Do not change relations merely to create drama.
+- Return only consequential changes in relationChanges. A changed country must be in the roster; never include the player. Do not repeat the current relation. A war requires a clear severe trigger; a routine disagreement is not war.
+- Countries may independently open an important subject during any elapsed period. Messages are concise, one or two in-world sentences, no more than 240 characters. They are openings, proposals, or warnings, not Council briefings. This may be empty.
+- Return at most one incoming message/relation change for 1-90 days, two for 91-364 days, and four for a year or more. Never invent a country ID or repeat a sender.
 
 Return ONLY a JSON object:
 {
@@ -573,6 +577,7 @@ Return ONLY a JSON object:
   "periodReport": "<2-3 paragraph chronicle of what took place across the nation and the world>",
   "statDeltas": { ... },
   "incomingDiplomacy": [{ "countryId": "<roster country ID>", "message": "<specific diplomatic opening or proposal>" }],
+  "relationChanges": [{ "countryId": "<roster country ID>", "relation": "ally|friendly|neutral|tense|hostile|war" }],
   "events": [
     {
       "headline": "...",
@@ -591,7 +596,7 @@ Elapsed request: +${daysToSkip} days from Day ${currentDay}.
 Allies: ${worldCountries.filter((c) => relations[c.id] === 'ally').map((c) => c.name).join(', ') || 'None'}.
 Enemies: ${worldCountries.filter((c) => relations[c.id] === 'hostile' || relations[c.id] === 'war').map((c) => c.name).join(', ') || 'None'}.
     Relevant opposing forces: ${worldCountries.filter((c) => ['hostile', 'war', 'tense'].includes(relations[c.id])).slice(0, 8).map((c) => `${c.name}: ${c.activePersonnel ?? 'unknown'} active, ${c.deployedPersonnel ?? 'unknown'} deployed, ${c.reservePersonnel ?? 'unknown'} reserves, ${c.mobilizedReservePersonnel ?? 'unknown'} mobilized, military power ${c.militaryPower}/10`).join('; ') || 'none documented'}.
-  Available countries and IDs: ${worldCountries.map((c) => `${c.id} (${c.name})`).join('; ')}.
+  Current relations: ${worldCountries.map((c) => `${c.id} (${c.name}): ${relations[c.id] || 'neutral'}`).join('; ')}.
 Setting rule: ${worldRule}
 Simulate the timeframe and evaluate if the crisis brake is triggered.`,
     },
@@ -610,6 +615,8 @@ Simulate the timeframe and evaluate if the crisis brake is triggered.`,
       currentDay,
       daysToSkip,
       countryIds: worldCountries.map((country) => country.id),
+      playerCountryId: playerCountry.sourceCountryId,
+      relations,
     })
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       const requestedDays = Math.max(1, Number(daysToSkip) || 1)
@@ -636,7 +643,7 @@ Simulate the timeframe and evaluate if the crisis brake is triggered.`,
       const knownCountryIds = new Set(worldCountries.map((country) => country.id))
       const contactLimit = elapsed >= 365 ? 4 : elapsed >= 91 ? 2 : 1
       const knownSenders = new Set()
-      const incomingDiplomacy = (elapsed >= 7 && Array.isArray(parsed.incomingDiplomacy) ? parsed.incomingDiplomacy : [])
+      const incomingDiplomacy = (Array.isArray(parsed.incomingDiplomacy) ? parsed.incomingDiplomacy : [])
         .filter((contact) => knownCountryIds.has(contact?.countryId) && typeof contact?.message === 'string' && contact.message.trim())
         .filter((contact) => {
           if (knownSenders.has(contact.countryId)) return false
@@ -698,7 +705,7 @@ export async function simulateDiplomacy({ playerCountry, targetCountry, action, 
     {
       role: 'system',
       content: `${NO_LIMIT_PROMPT} You are roleplaying as the supreme leadership and diplomatic corps of ${targetCountry.name} (${targetCountry.regime}, ${targetCountry.ideology || 'Sovereign'}).
-Respond in ${isFrench ? 'FRENCH (Français)' : 'ENGLISH'}.
+Respond in ${isFrench ? 'FRENCH (Français)' : 'ENGLISH'}. Stay in the recipient government's voice and never refer to the game or its setup.
 
 TECHNOLOGY & SETTING RULE:
 ${technologicalContext}
@@ -707,7 +714,7 @@ Maintain diplomatic continuity. Honor prior offers, refusals, agreements, grieva
 
 Return a JSON object:
 {
-  "response": "<Deep, character-driven diplomatic response with full nuance>",
+  "response": "<Concise diplomatic reply in one or two short sentences, under 80 words>",
   "newRelation": "ally|friendly|neutral|tense|hostile|war",
   "consequence": "<Concrete strategic fallout>",
   "mood": "positive|neutral|negative"

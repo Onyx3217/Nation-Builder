@@ -19,50 +19,55 @@ CREATE TABLE IF NOT EXISTS public.saved_games (
 );
 
 ALTER TABLE public.saved_games ADD COLUMN IF NOT EXISTS save_key TEXT;
+ALTER TABLE public.saved_games
+    ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
 DROP INDEX IF EXISTS public.saved_games_save_key_unique;
 CREATE UNIQUE INDEX saved_games_save_key_unique
     ON public.saved_games (save_key);
+CREATE INDEX IF NOT EXISTS saved_games_owner_id_idx ON public.saved_games (owner_id);
 
 -- 2. Activer la sécurité au niveau des lignes (Row Level Security)
 ALTER TABLE public.saved_games ENABLE ROW LEVEL SECURITY;
 
--- ATTENTION : ces politiques anon sont publiques. Toute personne ayant l'URL
--- et la clé anon du projet peut lire, modifier ou supprimer TOUTES les sauvegardes.
--- Ne stockez aucune donnée personnelle avec cette configuration.
--- Pour des sauvegardes privées par joueur, activez Supabase Auth, ajoutez un
--- owner_id UUID REFERENCES auth.users(id), puis utilisez auth.uid() dans les
--- politiques SELECT/INSERT/UPDATE/DELETE au lieu de USING (true).
---
--- 3. Politiques anon publiques (adaptées uniquement à des sauvegardes de démonstration)
+-- Supabase Auth anonymous users are authenticated Postgres users with a stable
+-- per-browser user ID. Enable Anonymous Sign-Ins in the Supabase Auth dashboard.
+-- Existing rows with a NULL owner_id are intentionally not exposed to clients.
+DROP POLICY IF EXISTS "Allow anon read saved_games" ON public.saved_games;
+DROP POLICY IF EXISTS "Allow anon insert saved_games" ON public.saved_games;
+DROP POLICY IF EXISTS "Allow anon update saved_games" ON public.saved_games;
+DROP POLICY IF EXISTS "Allow anon delete saved_games" ON public.saved_games;
+DROP POLICY IF EXISTS "Users read their own saved_games" ON public.saved_games;
+DROP POLICY IF EXISTS "Users insert their own saved_games" ON public.saved_games;
+DROP POLICY IF EXISTS "Users update their own saved_games" ON public.saved_games;
+DROP POLICY IF EXISTS "Users delete their own saved_games" ON public.saved_games;
 
--- Lecture publique des sauvegardes
-CREATE POLICY "Allow anon read saved_games"
+REVOKE ALL ON TABLE public.saved_games FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saved_games TO authenticated;
+
+CREATE POLICY "Users read their own saved_games"
     ON public.saved_games
     FOR SELECT
-    TO anon
-    USING (true);
+    TO authenticated
+    USING ((SELECT auth.uid()) = owner_id);
 
--- Insertion de nouvelles sauvegardes
-CREATE POLICY "Allow anon insert saved_games"
+CREATE POLICY "Users insert their own saved_games"
     ON public.saved_games
     FOR INSERT
-    TO anon
-    WITH CHECK (true);
+    TO authenticated
+    WITH CHECK ((SELECT auth.uid()) = owner_id);
 
--- Modification de ses sauvegardes
-CREATE POLICY "Allow anon update saved_games"
+CREATE POLICY "Users update their own saved_games"
     ON public.saved_games
     FOR UPDATE
-    TO anon
-    USING (true)
-    WITH CHECK (true);
+    TO authenticated
+    USING ((SELECT auth.uid()) = owner_id)
+    WITH CHECK ((SELECT auth.uid()) = owner_id);
 
--- Suppression des sauvegardes
-CREATE POLICY "Allow anon delete saved_games"
+CREATE POLICY "Users delete their own saved_games"
     ON public.saved_games
     FOR DELETE
-    TO anon
-    USING (true);
+    TO authenticated
+    USING ((SELECT auth.uid()) = owner_id);
 
 -- Index pour accélérer le tri chronologique
 CREATE INDEX IF NOT EXISTS idx_saved_games_updated_at ON public.saved_games (updated_at DESC);

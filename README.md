@@ -167,8 +167,11 @@ Nation Builder prend en charge deux systèmes de persistance :
 - **Sauvegarde locale** : l'état de partie est enregistré dans le `localStorage` du navigateur.
 - **Sauvegarde cloud (Supabase)** : le JSONB contient le pays, le roster, le calendrier, les projets, les événements, les relations, les historiques diplomatiques et les préférences audio. La modale estime la taille JSON avant l'envoi; un roster de base d'environ 97 pays représente près de 40 Ko avant historique.
 - **Mise à jour** : une partie conserve le même identifiant lors de chaque sauvegarde et remplace sa sauvegarde cloud précédente. Une nouvelle partie reçoit un nouvel identifiant.
+- **Confidentialité cloud** : les sauvegardes sont rattachées à une session invitée Supabase et protégées par `owner_id`/RLS. Dans le tableau de bord Supabase, activez **Authentication → Providers → Anonymous Sign-Ins**, puis exécutez le nouveau `supabase_schema.sql`. Le plan gratuit inclut actuellement 50 000 utilisateurs actifs mensuels; ses projets peuvent être mis en pause après une semaine d'inactivité.
+- **Limite des sessions invitées** : elles sont persistées dans ce navigateur mais ne sont pas récupérables après effacement des données ou sur un autre appareil. Pour une identité récupérable, ajoutez OAuth ou un SMTP personnalisé; le SMTP d'essai Supabase est limité aux adresses de l'équipe et à 2 messages par heure.
+- **Anciennes sauvegardes publiques** : les lignes créées avant l'ajout de `owner_id` restent en base mais ne sont plus accessibles aux clients, car aucun propriétaire fiable ne peut leur être attribué automatiquement. Migrez-les manuellement via le SQL Editor si elles doivent être conservées.
 
-**Important, confidentialité :** les politiques `anon` de `supabase_schema.sql` utilisent `USING (true)` et `WITH CHECK (true)`. Elles rendent les sauvegardes lisibles et modifiables par toute personne ayant accès à l'URL et à la clé publique Supabase. N'y stockez pas de données sensibles. Pour des sauvegardes privées par joueur, ajoutez une authentification Supabase et des politiques RLS basées sur `auth.uid()`.
+**Important :** Supabase Auth et les règles RLS protègent l'accès aux sauvegardes. La clé `anon` du client reste publique par conception; n'ajoutez jamais une clé `service_role` au navigateur.
 
 ---
 

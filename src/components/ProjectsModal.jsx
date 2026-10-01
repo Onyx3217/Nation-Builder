@@ -14,11 +14,10 @@ const CATEGORY_LABELS = {
   other: ['Autre', 'Other'],
 }
 
-export default function ProjectsModal({ isOpen, onClose }) {
+export default function ProjectsModal({ isOpen, onClose, onAdvanceDay }) {
   const {
     projects = [],
     day,
-    advanceDays,
     language,
     setProjectStatus,
     updateProjectDetails,
@@ -46,13 +45,13 @@ export default function ProjectsModal({ isOpen, onClose }) {
 
   const saveDraft = (projectId) => {
     updateProjectDetails(projectId, draft)
-    advanceDays(1)
+    onAdvanceDay?.()
     setEditingId(null)
   }
 
   const changeProjectStatus = (projectId, status) => {
     setProjectStatus(projectId, status)
-    advanceDays(1)
+    onAdvanceDay?.()
   }
 
   const statusLabel = (status) => {

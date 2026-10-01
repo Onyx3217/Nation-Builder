@@ -1,4 +1,4 @@
-import { supabase, hasSupabase } from './supabaseClient'
+import { supabase, hasSupabase, ensureSupabaseSession } from './supabaseClient'
 
 /**
  * SQL Schema for Supabase (can be executed in Supabase SQL Editor):
@@ -69,8 +69,11 @@ export async function saveGameToCloud(country, worldState) {
     throw new Error('Supabase is not configured. Check your .env file.')
   }
 
+  const session = await ensureSupabaseSession()
+  if (!session?.user?.id) throw new Error('Could not establish a private save session.')
   const payload = buildCloudSavePayload(country, worldState)
-  const { payloadBytes, ...row } = payload
+  const { payloadBytes, ...saveRow } = payload
+  const row = { ...saveRow, owner_id: session.user.id }
 
   const { data, error } = await supabase
     .from('saved_games')
@@ -90,10 +93,13 @@ export async function saveGameToCloud(country, worldState) {
  */
 export async function getCloudSaves() {
   if (!hasSupabase) return []
+  const session = await ensureSupabaseSession()
+  if (!session?.user?.id) return []
 
   const { data, error } = await supabase
     .from('saved_games')
     .select('id, created_at, updated_at, nation_name, nation_flag, turn')
+    .eq('owner_id', session.user.id)
     .order('updated_at', { ascending: false })
 
   if (error) {
@@ -111,11 +117,14 @@ export async function loadGameFromCloud(saveId) {
   if (!hasSupabase) {
     throw new Error('Supabase is not configured.')
   }
+  const session = await ensureSupabaseSession()
+  if (!session?.user?.id) throw new Error('Could not establish a private save session.')
 
   const { data, error } = await supabase
     .from('saved_games')
     .select('*')
     .eq('id', saveId)
+    .eq('owner_id', session.user.id)
     .single()
 
   if (error) {
@@ -131,11 +140,14 @@ export async function loadGameFromCloud(saveId) {
  */
 export async function deleteCloudSave(saveId) {
   if (!hasSupabase) return false
+  const session = await ensureSupabaseSession()
+  if (!session?.user?.id) return false
 
   const { error } = await supabase
     .from('saved_games')
     .delete()
     .eq('id', saveId)
+    .eq('owner_id', session.user.id)
 
   if (error) {
     console.error('Supabase delete error:', error)

@@ -218,8 +218,8 @@ export default function CloudSyncModal({ isOpen, onClose }) {
               </p>
               <p className="border-l-2 border-amber-500/70 bg-amber-950/20 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
                 {isFrench
-                  ? 'Confidentialité : le SQL anon actuel autorise la lecture et la modification de toutes les sauvegardes par tout visiteur disposant de la clé publique. Ne stockez pas de données sensibles; une isolation par joueur demande Supabase Auth et des règles RLS privées.'
-                  : 'Privacy: the current anon SQL allows anyone with the public key to read and modify every save. Do not store sensitive data; per-player isolation requires Supabase Auth and private RLS policies.'}
+                  ? 'Sauvegardes privées par session invitée. Elles restent liées à ce navigateur; pour les retrouver sur un autre appareil, il faudra relier un compte OAuth ou configurer un SMTP.'
+                  : 'Saves are private to this guest session and remain tied to this browser. To recover them on another device, link an OAuth account or configure SMTP.'}
               </p>
 
               {/* Cloud Saves List */}

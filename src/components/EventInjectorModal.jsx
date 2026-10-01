@@ -28,12 +28,12 @@ function StatDeltaBadge({ label, value, invert = false, isPercent = false, isCur
   )
 }
 
-export default function EventInjectorModal({ isOpen, onClose }) {
+export default function EventInjectorModal({ isOpen, onClose, onAdvanceDay }) {
   const {
     country,
     worldCountries,
+    worldMode,
     day,
-    advanceDays,
     dailyEventInjectionsRemaining = 2,
     consumeEventInjection,
     updateCountry,
@@ -103,7 +103,7 @@ export default function EventInjectorModal({ isOpen, onClose }) {
       type: statEffects.militaryTension > 20 ? 'military' : statEffects.gdpPerCapita ? 'economic' : 'political',
       turn: day,
     })
-    advanceDays(1)
+    onAdvanceDay?.()
 
     setErrorMessage('')
     setLastInjectedResult({
@@ -135,6 +135,7 @@ export default function EventInjectorModal({ isOpen, onClose }) {
         worldCountries,
         eventText: customInput.trim(),
         language,
+        worldMode,
       })
 
       handleApplyEffects(

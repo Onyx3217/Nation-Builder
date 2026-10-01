@@ -1,15 +1,16 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Music, Volume2, VolumeX, Globe, Settings, Check } from 'lucide-react'
+import { X, Music, Volume2, VolumeX, Globe, Settings, Check, Zap } from 'lucide-react'
 import { useGameStore } from '../store/gameStore'
 import { t } from '../i18n'
 
-export default function SettingsModal({ isOpen, onClose }) {
+export default function SettingsModal({ isOpen, onClose, onOpenProtocolOverride }) {
   const {
     language,
     musicEnabled,
     musicPlaying,
     musicError,
     musicVolume,
+    dailyEventInjectionsRemaining,
     setLanguage,
     setMusicEnabled,
     setMusicVolume,
@@ -155,6 +156,26 @@ export default function SettingsModal({ isOpen, onClose }) {
                 />
               </div>
             </section>
+
+            {onOpenProtocolOverride && (
+              <section className="border-t border-slate-800 pt-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <Zap size={15} className="text-amber-300" />
+                  <h3 className="text-xs font-bold uppercase text-slate-300">
+                    {lang === 'fr' ? 'Contournement de protocole' : 'Protocol override'}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={onOpenProtocolOverride}
+                  disabled={dailyEventInjectionsRemaining <= 0}
+                  className="flex min-h-12 w-full items-center justify-between gap-3 border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-left text-sm font-semibold text-amber-100 transition-colors hover:bg-amber-900/40 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span>{lang === 'fr' ? 'Injecteur géopolitique' : 'Geopolitical event injector'}</span>
+                  <span className="shrink-0 font-mono text-xs">{dailyEventInjectionsRemaining}/2</span>
+                </button>
+              </section>
+            )}
           </div>
 
           {/* Footer */}
