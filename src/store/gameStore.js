@@ -11,6 +11,8 @@ const defaultSettings = {
   musicPosition: 0,
 }
 
+const createGameId = () => `game-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
 const defaultCountry = {
   name: 'New Republic',
   flag: '👑',
@@ -189,6 +191,7 @@ export const useGameStore = create(
       // 'fictional' = AI-generated fictional world with fictional orgs
       worldMode: 'real',
       difficultyMode: 'normal',
+      gameId: createGameId(),
 
       // Active UN-style resolutions (visible to the player)
       activeResolutions: [],
@@ -540,6 +543,7 @@ export const useGameStore = create(
             diplomaticHistory: gameData.diplomaticHistory || {},
             worldMode,
             difficultyMode: gameData.difficultyMode || state.difficultyMode,
+            gameId: gameData.gameId || createGameId(),
             activeResolutions: Array.isArray(gameData.activeResolutions) ? gameData.activeResolutions.slice(-20) : [],
             worldEvents: Array.isArray(gameData.worldEvents) ? gameData.worldEvents.slice(-40) : [],
             projects: Array.isArray(gameData.projects) ? gameData.projects.slice(0, 30) : [],
@@ -578,6 +582,7 @@ export const useGameStore = create(
           gameOverReason: null,
           worldMode: 'real',
           difficultyMode: 'normal',
+          gameId: createGameId(),
           activeResolutions: [],
           worldEvents: [],
           projects: [],
@@ -609,6 +614,7 @@ export const useGameStore = create(
         musicPosition: state.musicPosition,
         worldMode: state.worldMode || 'real',
         difficultyMode: state.difficultyMode || 'normal',
+        gameId: state.gameId,
         activeResolutions: state.activeResolutions || [],
         worldEvents: state.worldEvents || [],
         projects: state.projects || [],

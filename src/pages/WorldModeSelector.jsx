@@ -230,18 +230,19 @@ export default function WorldModeSelector() {
                   <p className="mt-1 text-xs text-slate-400">{isFrench ? 'Choisissez votre façon de créer une nation.' : 'Choose how to create your nation.'}</p>
                 </div>
               </div>
-              <div className="grid gap-5 md:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {[
                   { id: 'ai', icon: '✦', title: isFrench ? 'Création IA' : 'AI creation', detail: isFrench ? 'Une nation générée, puis vous choisissez son nom.' : 'A generated nation; you choose its name.' },
                   { id: 'normal', icon: '◉', title: isFrench ? 'Mode normal' : 'Standard', detail: isFrench ? 'Choisissez librement les paramètres.' : 'Choose each parameter freely.' },
                   { id: 'hard', icon: '⚑', title: isFrench ? 'Mode contraint' : 'Limited attempts', detail: isFrench ? 'Deux tentatives par caractéristique, avec des choix explicites.' : 'Two attempts per characteristic, using explicit choices.' },
+                  { id: 'existing', icon: '◈', title: isFrench ? 'Pays existant' : 'Existing country', detail: isFrench ? 'Cliquez un pays sur la carte, puis adaptez-le à votre stratégie.' : 'Pick a country on the map, then tailor it to your strategy.' },
                 ].map((option) => (
                   <button
                     key={option.id}
                     type="button"
                     onClick={() => handleDifficultySelect(option.id)}
                     disabled={generating}
-                    className={`min-h-48 border p-6 text-left transition-colors disabled:cursor-wait disabled:opacity-60 ${option.id === 'hard' ? 'border-orange-900/70 bg-[#1b1511] hover:border-orange-500/60' : 'border-slate-700 bg-[#121715] hover:border-emerald-700/70'}`}
+                    className={`min-h-44 border p-5 text-left transition-colors disabled:cursor-wait disabled:opacity-60 ${option.id === 'hard' ? 'border-orange-900/70 bg-[#1b1511] hover:border-orange-500/60' : option.id === 'existing' ? 'border-blue-900/70 bg-[#101727] hover:border-blue-500/60' : 'border-slate-700 bg-[#121715] hover:border-emerald-700/70'}`}
                   >
                     <span className="text-3xl text-amber-300">{option.icon}</span>
                     <h3 className="mt-5 text-base font-semibold text-white">{option.title}</h3>

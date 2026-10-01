@@ -597,6 +597,7 @@ export default function Creation() {
     occupiedCountryId: country.territorialDisputeCountryId || null,
     occupiedCountryName: country.territorialDisputeWith || null,
   }))
+  const [selectedExistingCountry, setSelectedExistingCountry] = useState(null)
 
   // Difficulty & Steps
   const [diffMode, setDiffMode] = useState(difficultyMode || 'choose') // 'choose' | 'ai' | 'normal' | 'hard'
@@ -649,6 +650,30 @@ export default function Creation() {
   })
 
   const setF = (k, v) => setFormState((f) => ({ ...f, [k]: v }))
+
+  const applyExistingCountry = (selected) => {
+    if (!selected) return
+    const compatibleResources = (selected.resources || []).filter((resource) => availableResourceIds.has(resource))
+    setSelectedExistingCountry(selected.id)
+    setFormState((previous) => ({
+      ...previous,
+      name: selected.name || previous.name,
+      capital: selected.capital || previous.capital,
+      flag: selected.flag || previous.flag,
+      continent: CONTINENTS_DATA.some((item) => item.value === selected.continent) ? selected.continent : previous.continent,
+      area: selected.area || previous.area,
+      population: selected.population || previous.population,
+      regime: selected.regime || previous.regime,
+      gdpPerCapita: selected.gdpPerCapita || previous.gdpPerCapita,
+      militaryPower: selected.militaryPower ?? previous.militaryPower,
+    }))
+    if (compatibleResources.length) setSelectedResources(compatibleResources.slice(0, 3))
+  }
+
+  const handlePlacementChange = (nextPlacement) => {
+    setPlacement(nextPlacement)
+    if (!nextPlacement.occupiedCountryId) setSelectedExistingCountry(null)
+  }
 
   const selectContinent = (value) => {
     setF('continent', value)
@@ -979,8 +1004,16 @@ Retourne UNIQUEMENT un objet JSON valide, sans format markdown, sans commentaire
               worldCountries={worldCountryList}
               isFictional={isFictional}
               isFrench={isFrench}
-              onChange={setPlacement}
+              selectedCountryId={selectedExistingCountry}
+              onChange={handlePlacementChange}
+              onCountrySelect={applyExistingCountry}
             />
+            {!isFictional && selectedExistingCountry && (
+              <div className="border border-blue-500/40 bg-blue-500/10 px-4 py-3 text-xs text-blue-100" role="status">
+                <strong>{isFrench ? 'Pays existant sélectionné :' : 'Existing country selected:'}</strong>{' '}
+                {isFrench ? 'ses données servent de base à votre partie et restent modifiables dans les étapes suivantes.' : 'its data is the basis of your game and remains editable in the following steps.'}
+              </div>
+            )}
             {!isFictional && placement.occupiedCountryName && (
               <div className="border-l-2 border-amber-400 bg-amber-950/30 px-4 py-3 text-xs text-amber-100" role="status">
                 <strong>{isFrench ? 'Territoire disputé :' : 'Contested territory:'}</strong>{' '}
@@ -1758,7 +1791,7 @@ Retourne UNIQUEMENT un objet JSON valide, sans format markdown, sans commentaire
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0b100e] text-white">
-      <header className="glass border-b border-slate-800/80 px-6 py-4 flex items-center justify-between flex-shrink-0 z-30 bg-slate-950/70">
+      <header className="glass border-b border-slate-800/80 px-3 py-3 sm:px-6 sm:py-4 flex items-center justify-between flex-shrink-0 z-30 bg-slate-950/70">
         <div className="flex items-center gap-3">
           {!isHard && (
             <button
@@ -1809,7 +1842,7 @@ Retourne UNIQUEMENT un objet JSON valide, sans format markdown, sans commentaire
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4 py-8">
+      <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-3 py-5 sm:px-4 sm:py-8">
         {/* Step Progress */}
         <div className="flex items-center gap-1 mb-8 overflow-x-auto pb-2">
           {STEPS.map((s, i) => (
@@ -1875,7 +1908,7 @@ Retourne UNIQUEMENT un objet JSON valide, sans format markdown, sans commentaire
         </div>
 
         {/* Navigation Footer */}
-        <div className="flex justify-between mt-8 pt-6 border-t border-slate-800/80">
+        <div className="sticky bottom-0 z-20 -mx-3 mt-6 flex justify-between border-t border-slate-800/80 bg-[#0b100e]/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:static sm:mx-0 sm:mt-8 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-6">
           <button
             onClick={() => setStep((s) => Math.max(0, s - 1))}
             disabled={step === 0}

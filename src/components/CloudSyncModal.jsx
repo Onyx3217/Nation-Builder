@@ -26,6 +26,7 @@ export default function CloudSyncModal({ isOpen, onClose }) {
     musicEnabled,
     musicVolume,
     musicPosition,
+    gameId,
     restoreCloudSave,
   } = useGameStore()
 
@@ -55,7 +56,8 @@ export default function CloudSyncModal({ isOpen, onClose }) {
     musicEnabled,
     musicVolume,
     musicPosition,
-  }), [worldCountries, relations, newsFeed, day, dailyDirectivesRemaining, dailyEventInjectionsRemaining, cabinetHistory, incomingDiplomacy, diplomaticHistory, worldEvents, activeResolutions, projects, worldMode, difficultyMode, language, musicEnabled, musicVolume, musicPosition])
+    gameId,
+  }), [worldCountries, relations, newsFeed, day, dailyDirectivesRemaining, dailyEventInjectionsRemaining, cabinetHistory, incomingDiplomacy, diplomaticHistory, worldEvents, activeResolutions, projects, worldMode, difficultyMode, language, musicEnabled, musicVolume, musicPosition, gameId])
   const estimatedBytes = useMemo(() => estimateCloudSaveBytes(country, cloudState), [country, cloudState])
   const formatBytes = (bytes) => new Intl.NumberFormat(lang === 'fr' ? 'fr-FR' : 'en-US', { maximumFractionDigits: 1 }).format(bytes / 1024)
 
@@ -87,8 +89,8 @@ export default function CloudSyncModal({ isOpen, onClose }) {
       setStatusMsg({
         type: 'success',
         text: isFrench
-          ? `Partie sauvegardée (${formatBytes(estimatedBytes)} Ko de données JSON).`
-          : `Game saved (${formatBytes(estimatedBytes)} KB of JSON data).`,
+          ? `Partie mise à jour (${formatBytes(estimatedBytes)} Ko de données JSON).`
+          : `Game updated (${formatBytes(estimatedBytes)} KB of JSON data).`,
       })
       await fetchSaves()
     } catch (err) {
@@ -204,7 +206,7 @@ export default function CloudSyncModal({ isOpen, onClose }) {
                   className="w-full min-h-12 py-3 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold text-xs flex items-center justify-center gap-2 glow-blue transition-all shadow-lg"
                 >
                   {saving ? <RefreshCw size={14} className="animate-spin" /> : <Cloud size={14} />}
-                  {isFrench ? 'Sauvegarder' : 'Save'} {country.flag} {country.name} · {isFrench ? 'Jour' : 'Day'} {day}
+                  {isFrench ? 'Mettre à jour la sauvegarde' : 'Update save'} {country.flag} {country.name} · {isFrench ? 'Jour' : 'Day'} {day}
                 </button>
               ) : (
                 <div className="p-3 bg-slate-800/40 border border-slate-800 text-center text-xs text-slate-500">

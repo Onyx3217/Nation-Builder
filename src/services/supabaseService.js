@@ -18,6 +18,7 @@ export function buildCloudSavePayload(country, worldState) {
   const day = Math.max(1, Math.round(Number(worldState.day ?? worldState.turn) || 1))
   const gameData = {
     schemaVersion: 2,
+    gameId: worldState.gameId,
     country,
     worldCountries: worldState.worldCountries || [],
     relations: worldState.relations || {},
@@ -46,6 +47,7 @@ export function buildCloudSavePayload(country, worldState) {
   const payloadBytes = new TextEncoder().encode(JSON.stringify(gameData)).length
 
   return {
+    save_key: worldState.gameId,
     nation_name: country.name || 'Unnamed Nation',
     nation_flag: country.flag || '🌐',
     turn: day,
@@ -72,7 +74,7 @@ export async function saveGameToCloud(country, worldState) {
 
   const { data, error } = await supabase
     .from('saved_games')
-    .insert([row])
+    .upsert(row, { onConflict: 'save_key' })
     .select()
 
   if (error) {

@@ -11,7 +11,7 @@ function normalizeName(value = '') {
   return String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '')
 }
 
-export default function NationPlacementMap({ coordinates, worldCountries, isFictional, isFrench, onChange }) {
+export default function NationPlacementMap({ coordinates, worldCountries, isFictional, isFrench, selectedCountryId, onChange, onCountrySelect }) {
   const geographyUrl = isFictional ? FICTIONAL_MAP : REAL_MAP
   const handleMapClick = (event, featureName = null) => {
     const svg = event.currentTarget.ownerSVGElement || event.currentTarget
@@ -24,19 +24,20 @@ export default function NationPlacementMap({ coordinates, worldCountries, isFict
     const latitude = ((viewBox.height / 2 - y) / SCALE) * (180 / Math.PI)
     if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || Math.abs(longitude) > 180 || Math.abs(latitude) > 85) return
 
+    const aliases = { unitedstatesofamerica: 'unitedstates', demrepcongo: 'democraticrepublicofthecongo', czechia: 'czechrepublic', macedonia: 'northmacedonia', eswatini: 'swaziland' }
+    const mapName = aliases[normalizeName(featureName)] || normalizeName(featureName)
     const matchedCountry = !isFictional && featureName
-      ? (worldCountries || []).find((country) =>
-          normalizeName(country.name) === normalizeName(featureName)
-          || normalizeName(country.name) === normalizeName(featureName.replace(/^Dem\. /, ''))
-        )
+      ? (worldCountries || []).find((country) => normalizeName(country.name) === mapName || normalizeName(country.name) === normalizeName(featureName.replace(/^Dem\. /, '')))
       : null
 
-    onChange({
-      coordinates: [Number(longitude.toFixed(2)), Number(latitude.toFixed(2))],
+    const nextPlacement = {
+      coordinates: matchedCountry?.coordinates || [Number(longitude.toFixed(2)), Number(latitude.toFixed(2))],
       occupiedCountryId: matchedCountry?.id || null,
       occupiedCountryName: matchedCountry?.name || (!isFictional ? featureName : null),
       continent: matchedCountry?.continent || null,
-    })
+    }
+    onChange(nextPlacement)
+    if (matchedCountry) onCountrySelect?.(matchedCountry)
   }
 
   return (
@@ -45,7 +46,7 @@ export default function NationPlacementMap({ coordinates, worldCountries, isFict
         <div>
           <h3 className="text-sm font-semibold text-white">{isFrench ? 'Emplacement du pays' : 'Country location'}</h3>
           <p className="mt-1 text-[11px] text-slate-400">
-            {isFrench ? 'Cliquez sur la carte pour placer le repère.' : 'Click the map to place the pin.'}
+            {isFrench ? 'Cliquez un pays pour le jouer, ou dans la mer pour créer un pays sur mesure.' : 'Click a country to play it, or the sea to create a custom nation.'}
           </p>
         </div>
         <MapPin size={16} className="shrink-0 text-emerald-300" />
@@ -75,7 +76,7 @@ export default function NationPlacementMap({ coordinates, worldCountries, isFict
                         handleMapClick(event, geography.properties?.name || null)
                       }}
                       style={{
-                        default: { fill: isFictional ? '#263a36' : '#17251e', stroke: '#53655a', strokeWidth: 0.55, outline: 'none' },
+                        default: { fill: selectedCountryId && selectedCountryId === (worldCountries || []).find((country) => normalizeName(country.name) === normalizeName(geography.properties?.name))?.id ? '#2563eb' : (isFictional ? '#263a36' : '#17251e'), stroke: '#53655a', strokeWidth: 0.55, outline: 'none' },
                         hover: { fill: isFictional ? '#3a594b' : '#294335', stroke: '#a9c3a5', strokeWidth: 0.85, outline: 'none' },
                         pressed: { fill: '#42664f', outline: 'none' },
                       }}

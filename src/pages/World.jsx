@@ -680,9 +680,9 @@ export default function World() {
       </header>
 
       {/* Main Container */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-visible md:overflow-hidden">
         {/* Left Playfield */}
-        <div className="flex-1 flex flex-col overflow-auto p-4 md:p-6 space-y-4">
+        <div className="flex-1 flex flex-col overflow-visible md:overflow-auto p-3 sm:p-4 md:p-6 space-y-4">
           {/* Active Scenario Banner */}
           {country.initialScenario && (
             <div className="px-4 py-2.5 rounded-2xl border border-red-500/30 bg-red-950/20 flex items-center justify-between gap-3 text-xs">

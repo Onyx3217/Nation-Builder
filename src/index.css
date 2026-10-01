@@ -99,3 +99,18 @@
     background-clip: text;
   }
 }
+
+/* Compact controls and safe spacing for the dense strategy dashboard on phones. */
+@media (max-width: 639px) {
+  body {
+    overflow-x: hidden;
+  }
+
+  button {
+    min-height: 2.5rem;
+  }
+
+  input, select, textarea {
+    font-size: 16px;
+  }
+}
