@@ -19,8 +19,9 @@ CREATE TABLE IF NOT EXISTS public.saved_games (
 );
 
 ALTER TABLE public.saved_games ADD COLUMN IF NOT EXISTS save_key TEXT;
-CREATE UNIQUE INDEX IF NOT EXISTS saved_games_save_key_unique
-    ON public.saved_games (save_key) WHERE save_key IS NOT NULL;
+DROP INDEX IF EXISTS public.saved_games_save_key_unique;
+CREATE UNIQUE INDEX saved_games_save_key_unique
+    ON public.saved_games (save_key);
 
 -- 2. Activer la sécurité au niveau des lignes (Row Level Security)
 ALTER TABLE public.saved_games ENABLE ROW LEVEL SECURITY;

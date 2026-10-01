@@ -118,8 +118,9 @@ function normalizeCountryName(value = '') {
   return aliases[normalized] || normalized
 }
 
-function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, focusedCountry, worldMode = 'real', isFrench = true }) {
-  const [position, setPosition] = useState({ coordinates: [10, 20], zoom: 1 })
+function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, focusedCountry, worldMode = 'real', isFrench = true, isBackground = false }) {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches)
+  const [position, setPosition] = useState(() => ({ coordinates: [10, 20], zoom: 1 }))
   const [hoveredCountry, setHoveredCountry] = useState(null)
   const isFictionalWorld = worldMode === 'fictional'
   const geographyUrl = isFictionalWorld ? FICTIONAL_GEO_URL : REAL_GEO_URL
@@ -133,6 +134,13 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
   const handleZoomIn = () => setPosition((pos) => ({ ...pos, zoom: Math.min(pos.zoom * 1.5, 6) }))
   const handleZoomOut = () => setPosition((pos) => ({ ...pos, zoom: Math.max(pos.zoom / 1.5, 1) }))
   const handleResetZoom = () => setPosition({ coordinates: [10, 20], zoom: 1 })
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 639px)')
+    const updateMobileLayout = (event) => setIsMobile(event.matches)
+    media.addEventListener('change', updateMobileLayout)
+    return () => media.removeEventListener('change', updateMobileLayout)
+  }, [])
 
   // Sovereign oceanic placement for player country
   const playerCoordinates = useMemo(() => {
@@ -189,17 +197,21 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
   const countryByMapName = useMemo(() => new Map(indexedWorldCountries.map((country) => [normalizeCountryName(country.name), country])), [indexedWorldCountries])
 
   return (
-    <div className="relative w-full rounded-3xl overflow-hidden glass border border-slate-700/80 flex flex-col bg-[#030611] shadow-2xl">
+    <div className={isBackground
+      ? 'fixed inset-0 z-0 overflow-hidden bg-[#071522]'
+      : 'relative flex w-full flex-col overflow-hidden rounded-3xl border border-slate-700/80 bg-[#030611] shadow-2xl'}>
       {/* Top Map Control Bar */}
-      <div className="px-4 py-3 border-b border-slate-800/80 bg-slate-950/80 flex items-center justify-between gap-3 z-30">
+      <div className={isBackground
+        ? 'absolute right-2 top-36 z-30 flex items-center justify-between gap-2 border border-slate-500/80 bg-slate-950/90 px-2 py-2 shadow-xl sm:right-4 sm:top-24 sm:gap-3 sm:px-4 sm:py-3'
+        : 'z-30 flex items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/80 px-4 py-3'}>
         <div className="flex items-center gap-2">
-            <Navigation size={15} className={`${isFictionalWorld ? 'text-amber-300' : 'text-blue-400'} animate-spin-slow`} />
-          <span className="text-xs font-bold text-white uppercase tracking-wider">
+          <Navigation size={15} className={`${isFictionalWorld ? 'text-amber-300' : 'text-sky-300'}`} />
+          <span className={`${isBackground ? 'hidden sm:inline' : ''} text-xs font-bold text-white uppercase`}>
             {isFictionalWorld
               ? (isFrench ? 'Carte des royaumes connus' : 'Map of Known Realms')
               : (isFrench ? 'Carte géopolitique mondiale' : 'World Political Map')}
           </span>
-          <span className="text-[10px] text-slate-400 hidden sm:inline">
+          <span className={`${isBackground ? 'hidden lg:inline' : 'hidden sm:inline'} text-[10px] text-slate-300`}>
             ({indexedWorldCountries.length} {isFrench ? 'nations' : 'nations'})
           </span>
         </div>
@@ -209,7 +221,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
           <button
             type="button"
             onClick={handleZoomIn}
-            className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-blue-600 border border-slate-800 text-white flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
+            className="grid h-10 w-10 place-items-center border border-slate-500 bg-slate-900 text-white transition-colors hover:bg-blue-600 active:scale-95 sm:h-9 sm:w-9"
             title={isFrench ? 'Agrandir' : 'Zoom in'}
           >
             <ZoomIn size={14} />
@@ -217,7 +229,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
           <button
             type="button"
             onClick={handleZoomOut}
-            className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-blue-600 border border-slate-800 text-white flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
+            className="grid h-10 w-10 place-items-center border border-slate-500 bg-slate-900 text-white transition-colors hover:bg-blue-600 active:scale-95 sm:h-9 sm:w-9"
             title={isFrench ? 'Réduire' : 'Zoom out'}
           >
             <ZoomOut size={14} />
@@ -225,7 +237,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
           <button
             type="button"
             onClick={handleResetZoom}
-            className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
+            className="grid h-10 w-10 place-items-center border border-slate-500 bg-slate-900 text-slate-200 transition-colors hover:bg-slate-700 hover:text-white active:scale-95 sm:h-9 sm:w-9"
             title={isFrench ? 'Recentrer la carte' : 'Center map'}
           >
             <RotateCcw size={13} />
@@ -234,7 +246,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
       </div>
 
       {/* Interactive Canvas */}
-      <div className="relative w-full h-[58dvh] min-h-[420px] lg:h-[calc(100dvh-13rem)] lg:min-h-[560px]">
+      <div className={isBackground ? 'absolute inset-0 h-full w-full' : 'relative h-[58dvh] min-h-[420px] w-full lg:h-[calc(100dvh-13rem)] lg:min-h-[560px]'}>
         {/* Floating Dossier on Hover / Selected */}
         <AnimatePresence>
           {hoveredCountry && (
@@ -242,7 +254,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute bottom-4 right-4 z-40 glass border border-blue-500/40 p-4 rounded-2xl shadow-2xl bg-slate-950/95 min-w-[260px] space-y-2.5"
+              className="absolute bottom-4 right-3 z-40 min-w-[240px] max-w-[calc(100%-1.5rem)] space-y-2.5 border border-sky-300/70 bg-slate-950/95 p-4 shadow-2xl sm:right-4 sm:min-w-[260px]"
             >
               <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                 <div className="flex items-center gap-2.5">
@@ -303,7 +315,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
         </AnimatePresence>
 
         {/* Geopolitical Legend */}
-        <div className="absolute bottom-4 left-4 z-20 glass px-3.5 py-2 rounded-2xl border border-slate-800 bg-slate-950/80 flex items-center gap-3 text-[11px]">
+        <div className={`absolute ${isBackground ? 'bottom-[calc(max(24vh,8rem)+0.5rem)] md:bottom-4' : 'bottom-4'} left-2 z-20 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-x-3 gap-y-1 border border-slate-500/80 bg-slate-950/90 px-2.5 py-2 text-[10px] sm:left-4 sm:gap-3 sm:px-3.5 sm:text-[11px]`}>
           <span className="flex items-center gap-1 text-amber-400 font-bold">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_#f59e0b]" />
             {isFictionalWorld ? (isFrench ? 'Votre nation' : 'Your realm') : (isFrench ? 'Votre pays' : 'Your country')}
@@ -321,9 +333,10 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
 
         {/* SVG World Map */}
         <ComposableMap
+          preserveAspectRatio={isBackground && !isMobile ? 'xMidYMid slice' : 'xMidYMid meet'}
           projectionConfig={{
             rotate: [-10, 0, 0],
-            scale: 145,
+            scale: isBackground && isMobile ? 112 : 145,
           }}
           className="w-full h-full cursor-grab active:cursor-grabbing"
         >
@@ -351,17 +364,15 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
                       onMouseEnter={() => mapCountry && setHoveredCountry(mapCountry)}
                       onMouseLeave={() => setHoveredCountry(null)}
                       onClick={() => mapCountry && onSelectCountry(mapCountry)}
-                      style={{
-                        default: {
-                          fill: mapCountry ? colors.fill : (isFictionalWorld ? '#164e63' : '#172033'),
-                          fillOpacity: mapCountry ? 0.82 : 0.72,
-                          stroke: mapCountry ? 'rgba(255,255,255,0.50)' : 'rgba(148,163,184,0.28)',
-                          strokeWidth: mapCountry ? 0.8 : 0.4,
-                          outline: 'none',
-                        },
-                        hover: { fill: '#fbbf24', fillOpacity: 1, stroke: '#ffffff', strokeWidth: 1.35, outline: 'none' },
-                        pressed: { fill: '#f8fafc', outline: 'none' },
-                      }}
+                      fill={hoveredCountry?.id === mapCountry?.id && mapCountry
+                        ? '#fbbf24'
+                        : mapCountry ? colors.fill : (isFictionalWorld ? '#176273' : '#345267')}
+                      fillOpacity={hoveredCountry?.id === mapCountry?.id && mapCountry ? 1 : mapCountry ? 0.94 : 0.88}
+                      stroke={hoveredCountry?.id === mapCountry?.id && mapCountry
+                        ? '#ffffff'
+                        : mapCountry ? 'rgba(255,255,255,0.96)' : 'rgba(220,237,250,0.82)'}
+                      strokeWidth={hoveredCountry?.id === mapCountry?.id && mapCountry ? 1.6 : mapCountry ? 1.35 : 1.05}
+                      style={{ outline: 'none' }}
                     />
                   )
                 })
@@ -406,7 +417,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
                     onMouseEnter={() => setHoveredCountry(c)}
                   >
                     {/* Tight, non-overlapping clickable hitbox */}
-                    <circle r={Math.max(3.2, 4.8 / Math.sqrt(position.zoom))} fill="transparent" />
+                    <circle r={Math.max(isMobile ? 7 : 4, 7 / Math.sqrt(position.zoom))} fill="transparent" />
 
                     {/* Targeting beacon only if searched or focused */}
                     {isFocused && (
@@ -418,10 +429,10 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
 
                     {/* Tiny subtle radar dot */}
                     <circle
-                      r={isFocused ? 4.5 : isHovered ? 3.5 : position.zoom >= 2.5 ? 2.5 : 1.8}
+                      r={isFocused ? 6 : isHovered ? 5 : isMobile ? 3.4 : position.zoom >= 2.5 ? 3 : 2.5}
                       fill={colorConfig.fill}
-                      stroke={isFocused || isHovered ? '#ffffff' : 'rgba(255,255,255,0.4)'}
-                      strokeWidth={isFocused || isHovered ? 1.2 : 0.4}
+                      stroke={isFocused || isHovered ? '#ffffff' : 'rgba(255,255,255,0.95)'}
+                      strokeWidth={isFocused || isHovered ? 1.5 : 1}
                       className="transition-all"
                     />
 
@@ -444,7 +455,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
       </div>
 
       {/* Bottom Interactive Quick-Access Nation Radar Strip */}
-      <div className="p-3 border-t border-slate-800/80 bg-slate-950/90 flex items-center gap-2 overflow-x-auto">
+      {!isBackground && <div className="flex items-center gap-2 overflow-x-auto border-t border-slate-800/80 bg-slate-950/90 p-3">
         <span className="text-[10px] uppercase font-bold text-slate-500 whitespace-nowrap px-1">
           {isFrench ? 'Nations :' : 'Nations:'}
         </span>
@@ -464,7 +475,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
             </button>
           )
         })}
-      </div>
+      </div>}
     </div>
   )
 }

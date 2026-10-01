@@ -573,7 +573,7 @@ function WorldComparisonDrawer({ isOpen, onClose, onJumpToStep, currentForm, wor
 
 export default function Creation() {
   const navigate = useNavigate()
-  const { updateCountry, country, setPhase, groqApiKey, language, worldMode, difficultyMode, worldCountries: storeWorldCountries } = useGameStore()
+  const { updateCountry, setWorldCountries, country, setPhase, language, worldMode, difficultyMode, worldCountries: storeWorldCountries } = useGameStore()
   const isFrench = (language || 'fr') === 'fr'
   const isFictional = worldMode === 'fictional'
 
@@ -655,6 +655,30 @@ export default function Creation() {
     if (!selected) return
     const compatibleResources = (selected.resources || []).filter((resource) => availableResourceIds.has(resource))
     setSelectedExistingCountry(selected.id)
+    const selectedValues = {
+      continent: selected.continent,
+      area: selected.area,
+      population: selected.population,
+      regime: selected.regime,
+      gdpPerCapita: selected.gdpPerCapita,
+      unemploymentRate: selected.unemploymentRate,
+      inflationRate: selected.inflationRate,
+      publicDebt: selected.publicDebt,
+      giniIndex: selected.giniIndex,
+      povertyRate: selected.povertyRate,
+      militaryPower: selected.militaryPower,
+      language: selected.language,
+      religion: selected.religion,
+      diplomacyStyle: selected.diplomacyStyle,
+      capital: selected.capital,
+      flag: selected.flag,
+    }
+    const pickedFields = Object.keys(selectedValues).filter((field) => selectedValues[field] !== undefined && selectedValues[field] !== null)
+    if (compatibleResources.length) pickedFields.push('resources')
+    setHardRolled(Object.fromEntries(pickedFields.map((field) => [field, true])))
+    setHardTries((previous) => Object.fromEntries(
+      Object.keys(previous).map((field) => [field, pickedFields.includes(field) ? 1 : 2])
+    ))
     setFormState((previous) => ({
       ...previous,
       name: selected.name || previous.name,
@@ -665,14 +689,26 @@ export default function Creation() {
       population: selected.population || previous.population,
       regime: selected.regime || previous.regime,
       gdpPerCapita: selected.gdpPerCapita || previous.gdpPerCapita,
+      unemploymentRate: selected.unemploymentRate ?? previous.unemploymentRate,
+      inflationRate: selected.inflationRate ?? previous.inflationRate,
+      publicDebt: selected.publicDebt ?? previous.publicDebt,
+      giniIndex: selected.giniIndex ?? previous.giniIndex,
+      povertyRate: selected.povertyRate ?? previous.povertyRate,
       militaryPower: selected.militaryPower ?? previous.militaryPower,
+      language: LANGUAGES_DATA.some((item) => item.value === selected.language) ? selected.language : previous.language,
+      religion: RELIGIONS_DATA.includes(selected.religion) ? selected.religion : previous.religion,
+      diplomacyStyle: DIPLOMACY_DATA.some((item) => item.value === selected.diplomacyStyle) ? selected.diplomacyStyle : previous.diplomacyStyle,
     }))
     if (compatibleResources.length) setSelectedResources(compatibleResources.slice(0, 3))
   }
 
   const handlePlacementChange = (nextPlacement) => {
     setPlacement(nextPlacement)
-    if (!nextPlacement.occupiedCountryId) setSelectedExistingCountry(null)
+    if (!nextPlacement.selectedCountryId) {
+      setSelectedExistingCountry(null)
+      setHardRolled({})
+      setHardTries((previous) => Object.fromEntries(Object.keys(previous).map((field) => [field, 2])))
+    }
   }
 
   const selectContinent = (value) => {
@@ -734,7 +770,7 @@ export default function Creation() {
   const handleGenerateName = async () => {
     setGeneratingName(true)
     try {
-      const result = await generateCountryName(groqApiKey, {
+      const result = await generateCountryName({
         ...form,
         resources: selectedResources,
         worldMode,
@@ -778,12 +814,10 @@ Retourne UNIQUEMENT un objet JSON valide, sans format markdown, sans commentaire
   "resources": ["choisis 2 ou 3 parmi: ${resList}"]
 }`
 
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      const res = await fetch('/api/groq', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${groqApiKey}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://nation-builder.app',
         },
         body: JSON.stringify({
           model: 'qwen/qwen3-8b',
@@ -883,12 +917,16 @@ Retourne UNIQUEMENT un objet JSON valide, sans format markdown, sans commentaire
       flag: finalFlag,
       resources: selectedResources,
       coordinates: placement.coordinates,
+      sourceCountryId: selectedExistingCountry || undefined,
       territorialDisputeCountryId: placement.occupiedCountryId,
       territorialDisputeWith: placement.occupiedCountryName,
       gdpNominal: calculatedNominalGdp,
       initialScenario: finalScenarioLabel,
       ...scenarioPatch,
     })
+    if (selectedExistingCountry) {
+      setWorldCountries(worldCountryList.filter((item) => item.id !== selectedExistingCountry))
+    }
 
     setPhase('integration')
     navigate('/world')
@@ -1008,7 +1046,7 @@ Retourne UNIQUEMENT un objet JSON valide, sans format markdown, sans commentaire
               onChange={handlePlacementChange}
               onCountrySelect={applyExistingCountry}
             />
-            {!isFictional && selectedExistingCountry && (
+            {selectedExistingCountry && (
               <div className="border border-blue-500/40 bg-blue-500/10 px-4 py-3 text-xs text-blue-100" role="status">
                 <strong>{isFrench ? 'Pays existant sélectionné :' : 'Existing country selected:'}</strong>{' '}
                 {isFrench ? 'ses données servent de base à votre partie et restent modifiables dans les étapes suivantes.' : 'its data is the basis of your game and remains editable in the following steps.'}
@@ -1844,7 +1882,15 @@ Retourne UNIQUEMENT un objet JSON valide, sans format markdown, sans commentaire
 
       <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-3 py-5 sm:px-4 sm:py-8">
         {/* Step Progress */}
-        <div className="flex items-center gap-1 mb-8 overflow-x-auto pb-2">
+        <div className="mb-5 sm:mb-8">
+          <div className="mb-2 flex items-center justify-between text-[11px] text-slate-400 sm:hidden">
+            <span>{isFrench ? `Étape ${step + 1} sur ${STEPS.length}` : `Step ${step + 1} of ${STEPS.length}`}</span>
+            <span>{Math.round(((step + 1) / STEPS.length) * 100)}%</span>
+          </div>
+          <div className="mb-3 h-1 overflow-hidden bg-slate-800 sm:hidden" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1}>
+            <div className={`h-full transition-all ${isHard ? 'bg-red-500' : 'bg-emerald-400'}`} style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
+          </div>
+          <div className="hidden items-center gap-1 overflow-x-auto pb-2 sm:flex">
           {STEPS.map((s, i) => (
             <div key={s.id} className="flex items-center gap-1 flex-shrink-0">
               <button
@@ -1865,6 +1911,7 @@ Retourne UNIQUEMENT un objet JSON valide, sans format markdown, sans commentaire
               )}
             </div>
           ))}
+          </div>
         </div>
 
         {/* Step Content */}

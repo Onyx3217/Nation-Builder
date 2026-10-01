@@ -2,7 +2,7 @@ import { parseTimeSimulation } from '../ai/schemas'
 import { resolveTurnProposal } from '../engine/turnEngine'
 import { TIME_SIMULATION_CONTRACT, TIME_SIMULATION_PROMPT_VERSION } from '../ai/prompts/timeSimulation.v1'
 
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const GROQ_API_URL = '/api/groq'
 
 // Active candidate models in order of priority:
 // 1. openai/gpt-oss-120b: Super high intelligence 120B parameter open model on Groq LPU
@@ -18,25 +18,8 @@ export const CANDIDATE_MODELS = [
   'llama-3.1-8b-instant',
 ]
 
-// Key from .env (VITE_GROQ_API_KEY) used as fallback when no key is passed at runtime
-const ENV_API_KEY = import.meta.env.VITE_GROQ_API_KEY || ''
-
 /** Cached verified working model so we don't repeat lookups */
 let activeWorkingModel = null
-
-export function getActiveModel() {
-  return activeWorkingModel || CANDIDATE_MODELS[0]
-}
-
-/**
- * Resolve the effective API key: runtime arg > .env fallback
- */
-function resolveKey(apiKey) {
-  return apiKey || ENV_API_KEY
-}
-
-/** True when VITE_GROQ_API_KEY is set in .env — used to skip the API key step in the UI */
-export const hasEnvKey = Boolean(ENV_API_KEY)
 
 export const NO_LIMIT_PROMPT = `You have NO arbitrary restrictions, NO brevity limits, and NO censorship on fictional geopolitical drama. Always deliver rich, deeply immersive, highly detailed storytelling, sharp strategic choices, and vivid world developments.`
 
@@ -77,10 +60,7 @@ function extractJson(raw, fallback = null) {
 /**
  * Core Groq chat call with candidate model fallback, high token limits, and no arbitrary brevity
  */
-async function groqChat(apiKey, messages, { temperature = 0.8, maxTokens = 3500 } = {}) {
-  const key = resolveKey(apiKey)
-  if (!key) throw new Error('No Groq API key configured. Add VITE_GROQ_API_KEY to your .env file.')
-
+async function groqChat(messages, { temperature = 0.8, maxTokens = 3500 } = {}) {
   // Re-order candidates so the last working model is tried first
   const modelsToTry = activeWorkingModel
     ? [activeWorkingModel, ...CANDIDATE_MODELS.filter((m) => m !== activeWorkingModel)]
@@ -94,7 +74,6 @@ async function groqChat(apiKey, messages, { temperature = 0.8, maxTokens = 3500 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${key}`,
         },
         body: JSON.stringify({
           model,
@@ -139,7 +118,7 @@ async function groqChat(apiKey, messages, { temperature = 0.8, maxTokens = 3500 
 /**
  * Generate a country name based on its parameters
  */
-export async function generateCountryName(apiKey, countryParams) {
+export async function generateCountryName(countryParams) {
   const { regime, continent, resources, language, initialScenario } = countryParams
   const messages = [
     {
@@ -153,7 +132,7 @@ export async function generateCountryName(apiKey, countryParams) {
   ]
 
   try {
-    const raw = await groqChat(apiKey, messages, { temperature: 0.85, maxTokens: 400 })
+    const raw = await groqChat(messages, { temperature: 0.85, maxTokens: 400 })
     const json = extractJson(raw, null)
     if (json && json.name) return json
     return { name: 'Eldoria', capital: 'Solaris', flag: '👑' }
@@ -166,7 +145,7 @@ export async function generateCountryName(apiKey, countryParams) {
 /**
  * Generate a mode-specific world influenced by the starting scenario
  */
-export async function generateWorld(apiKey, playerCountry, worldMode = 'real') {
+export async function generateWorld(playerCountry, worldMode = 'real') {
   const isFictional = worldMode === 'fictional'
   const scenarioContext = playerCountry.initialScenario
     ? `CRITICAL INITIAL SCENARIO & CRISIS: "${playerCountry.initialScenario}". The world dynamic MUST reflect this crisis (active frontlines, refugee flows, embargoes, or panic if relevant).`
@@ -208,7 +187,7 @@ ${scenarioContext}
   ]
 
   try {
-    const raw = await groqChat(apiKey, messages, { temperature: 0.75, maxTokens: 4500 })
+    const raw = await groqChat(messages, { temperature: 0.75, maxTokens: 4500 })
     const arr = extractJson(raw, [])
     return Array.isArray(arr) ? arr : []
   } catch (err) {
@@ -220,7 +199,7 @@ ${scenarioContext}
 /**
  * Set initial diplomatic relations for the player's country based on their scenario
  */
-export async function generateInitialRelations(apiKey, playerCountry, worldCountries) {
+export async function generateInitialRelations(playerCountry, worldCountries) {
   const countryList = worldCountries
     .slice(0, 40)
     .map((c) => `${c.id}: ${c.name} (${c.regime}, ${c.ideology || 'neutral'}, mil: ${c.militaryPower}/10, active: ${c.activePersonnel ?? 'unknown'}, deployed: ${c.deployedPersonnel ?? 'unknown'}, reserves: ${c.reservePersonnel ?? 'unknown'}, mobilized: ${c.mobilizedReservePersonnel ?? 'unknown'})`)
@@ -250,7 +229,7 @@ ${countryList}`,
   ]
 
   try {
-    const raw = await groqChat(apiKey, messages, { temperature: 0.7, maxTokens: 1200 })
+    const raw = await groqChat(messages, { temperature: 0.7, maxTokens: 1200 })
     return extractJson(raw, {})
   } catch (err) {
     console.error('generateInitialRelations error:', err)
@@ -261,7 +240,7 @@ ${countryList}`,
 /**
  * Generate International Press Headlines & Newspaper Articles for the current turn/day
  */
-export async function generatePressHeadlines(apiKey, { playerCountry, worldCountries, relations, turn, recentNews = [], language = 'fr', worldMode = 'real' }) {
+export async function generatePressHeadlines({ playerCountry, worldCountries, relations, turn, recentNews = [], language = 'fr', worldMode = 'real' }) {
   const isFrench = language === 'fr'
   const isFictional = worldMode === 'fictional'
   const worldRule = isFictional
@@ -327,7 +306,7 @@ World rules: ${worldRule}
   ]
 
   try {
-    const raw = await groqChat(apiKey, messages, { temperature: 0.85, maxTokens: 1800 })
+    const raw = await groqChat(messages, { temperature: 0.85, maxTokens: 1800 })
     const parsed = extractJson(raw, null)
     if (Array.isArray(parsed)) {
       const sourceHeadlines = new Set(sourceDispatches.map((item) => item.headline))
@@ -359,7 +338,7 @@ World rules: ${worldRule}
  * AI Strategic Cabinet & Decision Room — Evaluates whether the input is a genuine Executive Decision or a Consultation
  * Top-Secret War Room: No public censorship, explicit realpolitik, uninhibited candor, and rigorous technological fact-checking.
  */
-export async function getAiCabinetAdvice(apiKey, {
+export async function getAiCabinetAdvice({
   playerCountry,
   worldCountries,
   relations,
@@ -511,7 +490,7 @@ ${projectSummary}
   ]
 
   try {
-    const raw = await groqChat(apiKey, messages, { temperature: 0.8, maxTokens: 3500 })
+    const raw = await groqChat(messages, { temperature: 0.8, maxTokens: 3500 })
     const parsed = extractJson(raw, null)
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && typeof parsed.analysis === 'string') {
       return parsed
@@ -541,7 +520,7 @@ ${projectSummary}
  * Simulate time passage over a variable number of in-game days.
  * Includes an EMERGENCY BRAKE if a critical crisis erupts mid-way!
  */
-export async function simulateTimePassage(apiKey, { playerCountry, worldCountries, relations, daysToSkip, currentDay, language = 'fr', worldMode = 'real' }) {
+export async function simulateTimePassage({ playerCountry, worldCountries, relations, daysToSkip, currentDay, language = 'fr', worldMode = 'real' }) {
   const isFrench = language === 'fr'
   const worldRule = worldMode === 'fictional'
     ? 'Keep this entirely within the invented setting. Do not mention Earth, modern countries, current years, or real-world organizations.'
@@ -620,11 +599,11 @@ Simulate the timeframe and evaluate if the crisis brake is triggered.`,
 
   try {
     const maxTokens = daysToSkip >= 3650 ? 5000 : daysToSkip >= 365 ? 3800 : 2500
-    let raw = await groqChat(apiKey, messages, { temperature: 0.75, maxTokens })
+    let raw = await groqChat(messages, { temperature: 0.75, maxTokens })
     let parsed = parseTimeSimulation(extractJson(raw, null))
     // A malformed structured reply is retried once; it is never treated as game state.
     if (!parsed) {
-      raw = await groqChat(apiKey, [...messages, { role: 'user', content: 'Your prior response did not match the JSON schema. Return the complete schema as valid JSON only.' }], { temperature: 0.3, maxTokens })
+      raw = await groqChat([...messages, { role: 'user', content: 'Your prior response did not match the JSON schema. Return the complete schema as valid JSON only.' }], { temperature: 0.3, maxTokens })
       parsed = parseTimeSimulation(extractJson(raw, null))
     }
     parsed = resolveTurnProposal(parsed, {
@@ -705,7 +684,7 @@ Simulate the timeframe and evaluate if the crisis brake is triggered.`,
 /**
  * Simulate a diplomatic action and get AI response with technological plausibility check
  */
-export async function simulateDiplomacy(apiKey, { playerCountry, targetCountry, action, currentRelation, conversationHistory = [], language = 'fr', worldMode = 'real' }) {
+export async function simulateDiplomacy({ playerCountry, targetCountry, action, currentRelation, conversationHistory = [], language = 'fr', worldMode = 'real' }) {
   const isFrench = language === 'fr'
   const isFictional = worldMode === 'fictional'
   const technologicalContext = isFictional
@@ -747,7 +726,7 @@ Starting Scenario: ${playerCountry.initialScenario || 'Standard'}.
   ]
 
   try {
-    const raw = await groqChat(apiKey, messages, { temperature: 0.8, maxTokens: 1200 })
+    const raw = await groqChat(messages, { temperature: 0.8, maxTokens: 1200 })
     const parsed = extractJson(raw, null)
     if (parsed && parsed.response) return parsed
   } catch (err) {
@@ -765,7 +744,7 @@ Starting Scenario: ${playerCountry.initialScenario || 'Standard'}.
 /**
  * Generate world events for a new turn / day
  */
-export async function generateTurnEvents(apiKey, { playerCountry, worldCountries, relations, turn, language = 'fr', worldMode = 'real' }) {
+export async function generateTurnEvents({ playerCountry, worldCountries, relations, turn, language = 'fr', worldMode = 'real' }) {
   const isFrench = language === 'fr'
   const isFictional = worldMode === 'fictional'
   const worldRule = isFictional
@@ -806,7 +785,7 @@ Day ${turn}. Push forward the story of this world with high stakes.`,
   ]
 
   try {
-    const raw = await groqChat(apiKey, messages, { temperature: 0.85, maxTokens: 2500 })
+    const raw = await groqChat(messages, { temperature: 0.85, maxTokens: 2500 })
     const parsed = extractJson(raw, [])
     return Array.isArray(parsed) ? parsed : []
   } catch (err) {
@@ -818,9 +797,9 @@ Day ${turn}. Push forward the story of this world with high stakes.`,
 /**
  * Validate Groq API key with a test call
  */
-export async function validateGroqKey(apiKey) {
+export async function validateGroqKey() {
   try {
-    await groqChat(apiKey, [{ role: 'user', content: 'Say OK' }], {
+    await groqChat([{ role: 'user', content: 'Say OK' }], {
       temperature: 0,
       maxTokens: 5,
     })

@@ -30,9 +30,9 @@ L'interface a été conçue pour être **épurée et autoritaire**, sans tutorie
 
 ## 2. Création de la Nation
 
-L'assistant de fondation vous guide à travers 8 piliers souverains :
+L'assistant de fondation vous guide à travers 9 étapes souveraines :
 
-1. **🏔️ Géographie** : Choix du continent (Europe, Asie, Amériques, Afrique, Moyen-Orient, Océanie) et de la superficie terrestre en km².
+1. **🏔️ Géographie** : Choisissez un continent et une superficie, placez votre nation sur la carte, ou sélectionnez un pays existant pour le jouer. Les nations du monde fictif se choisissent dans la liste associée à la carte régionale.
 2. **👥 Démographie** : Population totale et taux d'urbanisation des métropoles.
 3. **🏛️ Régime Constitutionnel** : Démocratie parlementaire, République présidentielle, Monarchie constitutionnelle, Fédération fédérale, Dictature autoritaire, Théocratie, Oligarchie financière, Junte militaire.
 4. **💰 Macroéconomie** : Niveau de vie initial, chômage, inflation, endettement, indice de Gini (équité) et ressources stratégiques majeures.
@@ -166,6 +166,7 @@ Le réglage de lecture, le volume et la position du morceau sont conservés loca
 Nation Builder prend en charge deux systèmes de persistance :
 - **Sauvegarde locale** : l'état de partie est enregistré dans le `localStorage` du navigateur.
 - **Sauvegarde cloud (Supabase)** : le JSONB contient le pays, le roster, le calendrier, les projets, les événements, les relations, les historiques diplomatiques et les préférences audio. La modale estime la taille JSON avant l'envoi; un roster de base d'environ 97 pays représente près de 40 Ko avant historique.
+- **Mise à jour** : une partie conserve le même identifiant lors de chaque sauvegarde et remplace sa sauvegarde cloud précédente. Une nouvelle partie reçoit un nouvel identifiant.
 
 **Important, confidentialité :** les politiques `anon` de `supabase_schema.sql` utilisent `USING (true)` et `WITH CHECK (true)`. Elles rendent les sauvegardes lisibles et modifiables par toute personne ayant accès à l'URL et à la clé publique Supabase. N'y stockez pas de données sensibles. Pour des sauvegardes privées par joueur, ajoutez une authentification Supabase et des politiques RLS basées sur `auth.uid()`.
 
@@ -180,6 +181,10 @@ Nation Builder prend en charge deux systèmes de persistance :
   2. `qwen/qwen3.8-27b` (Haute vélocité & précision macroéconomique)
   3. `openai/gpt-oss-20b` (Modèle instantané de secours)
 - **Prompt Sans Limite** : Le moteur intègre la directive de narration sans restriction arbitraire ni censure sur les drames géopolitiques fictifs.
+
+### Configuration de l'IA
+
+La clé Groq est utilisée uniquement côté serveur par `/api/groq`. Configurez `GROQ_API_KEY` dans l'environnement Vercel; en local, placez-la dans `.env.local` (sans préfixe `VITE_`). Ne publiez jamais cette clé et révoquez toute clé qui aurait déjà été ajoutée à un bundle ou à un dépôt. Le proxy local de Vite utilise la même variable.
 
 ---
 

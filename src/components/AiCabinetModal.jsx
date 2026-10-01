@@ -133,7 +133,6 @@ export default function AiCabinetModal({ isOpen, onClose, onForwardDiplomacy }) 
     dailyDirectivesRemaining,
     consumeDirective,
     addProject,
-    groqApiKey,
     updateCountry,
     addNews,
     language,
@@ -197,7 +196,7 @@ export default function AiCabinetModal({ isOpen, onClose, onForwardDiplomacy }) 
     setLoading(true)
 
     try {
-      const result = await getAiCabinetAdvice(groqApiKey, {
+      const result = await getAiCabinetAdvice({
         playerCountry: country,
         worldCountries,
         relations,

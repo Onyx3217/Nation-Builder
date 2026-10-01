@@ -235,7 +235,9 @@ export default function WorldModeSelector() {
                   { id: 'ai', icon: '✦', title: isFrench ? 'Création IA' : 'AI creation', detail: isFrench ? 'Une nation générée, puis vous choisissez son nom.' : 'A generated nation; you choose its name.' },
                   { id: 'normal', icon: '◉', title: isFrench ? 'Mode normal' : 'Standard', detail: isFrench ? 'Choisissez librement les paramètres.' : 'Choose each parameter freely.' },
                   { id: 'hard', icon: '⚑', title: isFrench ? 'Mode contraint' : 'Limited attempts', detail: isFrench ? 'Deux tentatives par caractéristique, avec des choix explicites.' : 'Two attempts per characteristic, using explicit choices.' },
-                  { id: 'existing', icon: '◈', title: isFrench ? 'Pays existant' : 'Existing country', detail: isFrench ? 'Cliquez un pays sur la carte, puis adaptez-le à votre stratégie.' : 'Pick a country on the map, then tailor it to your strategy.' },
+                  { id: 'existing', icon: '◈', title: isFrench ? 'Pays existant' : 'Existing country', detail: selectedMode === 'fictional'
+                    ? (isFrench ? 'Choisissez une nation de ce monde, puis adaptez-la à votre stratégie.' : 'Choose a nation from this world, then tailor it to your strategy.')
+                    : (isFrench ? 'Cliquez un pays sur la carte, puis adaptez-le à votre stratégie.' : 'Pick a country on the map, then tailor it to your strategy.') },
                 ].map((option) => (
                   <button
                     key={option.id}

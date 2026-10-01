@@ -33,12 +33,12 @@ export default function EventInjectorModal({ isOpen, onClose }) {
     country,
     worldCountries,
     day,
+    advanceDays,
     dailyEventInjectionsRemaining = 2,
     consumeEventInjection,
     updateCountry,
     addNews,
     addWorldEvent,
-    groqApiKey,
     language,
   } = useGameStore()
 
@@ -103,6 +103,7 @@ export default function EventInjectorModal({ isOpen, onClose }) {
       type: statEffects.militaryTension > 20 ? 'military' : statEffects.gdpPerCapita ? 'economic' : 'political',
       turn: day,
     })
+    advanceDays(1)
 
     setErrorMessage('')
     setLastInjectedResult({
@@ -129,7 +130,7 @@ export default function EventInjectorModal({ isOpen, onClose }) {
     setErrorMessage('')
 
     try {
-      const evaluation = await evaluateCustomEventWithAi(groqApiKey, {
+      const evaluation = await evaluateCustomEventWithAi({
         playerCountry: country,
         worldCountries,
         eventText: customInput.trim(),

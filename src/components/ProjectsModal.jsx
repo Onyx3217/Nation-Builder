@@ -18,6 +18,7 @@ export default function ProjectsModal({ isOpen, onClose }) {
   const {
     projects = [],
     day,
+    advanceDays,
     language,
     setProjectStatus,
     updateProjectDetails,
@@ -45,7 +46,13 @@ export default function ProjectsModal({ isOpen, onClose }) {
 
   const saveDraft = (projectId) => {
     updateProjectDetails(projectId, draft)
+    advanceDays(1)
     setEditingId(null)
+  }
+
+  const changeProjectStatus = (projectId, status) => {
+    setProjectStatus(projectId, status)
+    advanceDays(1)
   }
 
   const statusLabel = (status) => {
@@ -199,16 +206,16 @@ export default function ProjectsModal({ isOpen, onClose }) {
                         </button>
                       )}
                       {project.status === 'active' ? (
-                        <button type="button" onClick={() => setProjectStatus(project.id, 'paused')} title={isFrench ? 'Mettre en pause' : 'Pause project'} className="p-1.5 text-slate-400 hover:text-white">
+                        <button type="button" onClick={() => changeProjectStatus(project.id, 'paused')} title={isFrench ? 'Mettre en pause' : 'Pause project'} className="p-1.5 text-slate-400 hover:text-white">
                           <Pause size={14} />
                         </button>
                       ) : project.status === 'paused' ? (
-                        <button type="button" onClick={() => setProjectStatus(project.id, 'active')} title={isFrench ? 'Reprendre' : 'Resume project'} className="p-1.5 text-slate-400 hover:text-white">
+                        <button type="button" onClick={() => changeProjectStatus(project.id, 'active')} title={isFrench ? 'Reprendre' : 'Resume project'} className="p-1.5 text-slate-400 hover:text-white">
                           <Play size={14} />
                         </button>
                       ) : null}
                       {editable && (
-                        <button type="button" onClick={() => setProjectStatus(project.id, 'cancelled')} title={isFrench ? 'Annuler le projet' : 'Cancel project'} className="p-1.5 text-slate-500 hover:text-red-300">
+                        <button type="button" onClick={() => changeProjectStatus(project.id, 'cancelled')} title={isFrench ? 'Annuler le projet' : 'Cancel project'} className="p-1.5 text-slate-500 hover:text-red-300">
                           <X size={14} />
                         </button>
                       )}

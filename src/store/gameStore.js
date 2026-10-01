@@ -166,9 +166,6 @@ export const useGameStore = create(
       // News / event feed
       newsFeed: [],
 
-      // Groq API key
-      groqApiKey: '',
-
       // ─── Time & Monthly Directive Quota ───────────────────────────────────
       day: 1,
       // Executive actions replenish every 30 in-game days, not every click.
@@ -340,16 +337,17 @@ export const useGameStore = create(
       setWorldCountries: (countries) =>
         set((state) => {
           const isFictional = state.worldMode === 'fictional'
+          const playerCountryId = state.country.sourceCountryId
           const canonicalCountries = isFictional ? FICTIONAL_WORLD_COUNTRIES : DEFAULT_WORLD_COUNTRIES
           const uniqueCountries = new Map()
           ;(countries || [])
-            .filter((country) => isFictional ? country.isReal !== true : country.isReal !== false)
+            .filter((country) => country.id !== playerCountryId && (isFictional ? country.isReal !== true : country.isReal !== false))
             .forEach((country) => uniqueCountries.set(country.id, country))
           const modeCountries = [...uniqueCountries.values()]
           const existingIds = new Set(modeCountries.map((country) => country.id))
           const merged = [...modeCountries]
           canonicalCountries.forEach((c) => {
-            if (!existingIds.has(c.id)) {
+            if (!existingIds.has(c.id) && c.id !== playerCountryId) {
               merged.push(c)
               existingIds.add(c.id)
             }
@@ -401,8 +399,6 @@ export const useGameStore = create(
         set((state) => ({
           newsFeed: [item, ...state.newsFeed].slice(0, 80),
         })),
-
-      setGroqApiKey: (key) => set({ groqApiKey: key }),
 
       /** Use one of the 5 executive actions available each 30-day period */
       consumeDirective: () =>
@@ -511,16 +507,17 @@ export const useGameStore = create(
       restoreCloudSave: (gameData) =>
         set((state) => {
           const worldMode = gameData.worldMode === 'fictional' ? 'fictional' : 'real'
+          const playerCountryId = gameData.country?.sourceCountryId
           const relations = gameData.relations || {}
           const canonicalCountries = worldMode === 'fictional' ? FICTIONAL_WORLD_COUNTRIES : DEFAULT_WORLD_COUNTRIES
           const uniqueCountries = new Map()
           ;(gameData.worldCountries || []).forEach((item) => {
-            if (item?.id && (worldMode === 'fictional' ? item.isReal !== true : item.isReal !== false)) {
+            if (item?.id && item.id !== playerCountryId && (worldMode === 'fictional' ? item.isReal !== true : item.isReal !== false)) {
               uniqueCountries.set(item.id, item)
             }
           })
           canonicalCountries.forEach((item) => {
-            if (!uniqueCountries.has(item.id)) uniqueCountries.set(item.id, item)
+            if (!uniqueCountries.has(item.id) && item.id !== playerCountryId) uniqueCountries.set(item.id, item)
           })
           const worldCountries = [...uniqueCountries.values()]
             .map((item) => withEstimatedForces(item, relations[item.id]))
@@ -595,6 +592,12 @@ export const useGameStore = create(
     }),
     {
       name: 'nation-builder-save-v5',
+      version: 6,
+      migrate: (persistedState) => {
+        const safeState = { ...persistedState }
+        delete safeState.groqApiKey
+        return safeState
+      },
       partialize: (state) => ({
         phase: state.phase,
         country: state.country,
@@ -607,7 +610,6 @@ export const useGameStore = create(
         incomingDiplomacy: state.incomingDiplomacy || [],
         diplomaticHistory: state.diplomaticHistory || {},
         cabinetHistory: (state.cabinetHistory || []).slice(-100),
-        groqApiKey: state.groqApiKey,
         language: state.language,
         musicEnabled: state.musicEnabled,
         musicVolume: state.musicVolume,

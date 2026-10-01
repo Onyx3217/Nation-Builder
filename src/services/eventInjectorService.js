@@ -133,7 +133,7 @@ export const PRESET_INJECTOR_EVENTS = [
 /**
  * Evaluates a custom, user-written cataclysmic event using AI (or heuristic fallback)
  */
-export async function evaluateCustomEventWithAi(groqApiKey, { playerCountry, worldCountries, eventText, language = 'fr' }) {
+export async function evaluateCustomEventWithAi({ playerCountry, worldCountries, eventText, language = 'fr' }) {
   const isFrench = language === 'fr'
 
   const prompt = `Tu es le moteur de simulation géopolitique suprême d'un jeu de stratégie d'État réaliste.
@@ -168,38 +168,21 @@ Réponds UNIQUEMENT par un objet JSON valide, sans balises markdown, sans texte 
 }`
 
   try {
-    const key = groqApiKey || import.meta.env.VITE_GROQ_API_KEY || ''
-    if (!key) throw new Error('No API key provided')
-
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const requestEvaluation = (model) => fetch('/api/groq', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.85,
         max_tokens: 600,
       }),
     })
+    const res = await requestEvaluation('llama-3.3-70b-versatile')
 
     if (!res.ok) {
       // Fallback model
-      const resFallback = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.85,
-          max_tokens: 600,
-        }),
-      })
+      const resFallback = await requestEvaluation('llama-3.1-8b-instant')
       const fallbackData = await resFallback.json()
       const rawText = fallbackData?.choices?.[0]?.message?.content || ''
       const match = rawText.match(/\{[\s\S]*\}/)

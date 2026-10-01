@@ -53,7 +53,6 @@ export default function World() {
   const navigate = useNavigate()
   const {
     country,
-    groqApiKey,
     worldCountries,
     setWorldCountries,
     relations,
@@ -105,6 +104,7 @@ export default function World() {
   const [loadingMsg, setLoadingMsg] = useState('')
   const [sideTab, setSideTab] = useState('countries')
   const [viewMode, setViewMode] = useState('map') // 'map' | 'grid' | 'press'
+  const isMapOverview = viewMode === 'map'
   const [selectedCountry, setSelectedCountry] = useState(null)
   const [diplomacyOpen, setDiplomacyOpen] = useState(false)
   const [diplomacyInput, setDiplomacyInput] = useState('')
@@ -158,7 +158,7 @@ export default function World() {
       const recentNews = useGameStore.getState().newsFeed
         .filter((item) => Number(item.turn ?? curDay) >= curDay - 30)
         .slice(0, 8)
-      const data = await generatePressHeadlines(groqApiKey, {
+      const data = await generatePressHeadlines({
         playerCountry: country,
         worldCountries: wCountries,
         relations: curRels,
@@ -179,12 +179,12 @@ export default function World() {
     setLoading(true)
     try {
       setLoadingMsg(isFrench ? 'Génération de l\'ordre mondial géopolitique...' : 'Generating world geopolitical order...')
-      const generatedWorld = await generateWorld(groqApiKey, country, worldMode)
+      const generatedWorld = await generateWorld(country, worldMode)
       setWorldCountries(generatedWorld)
       const world = useGameStore.getState().worldCountries
 
       setLoadingMsg(isFrench ? 'Alignements régionaux & fronts géopolitiques...' : 'Regional alignments & geopolitical fronts...')
-      const rels = await generateInitialRelations(groqApiKey, country, world)
+      const rels = await generateInitialRelations(country, world)
       if (country.territorialDisputeCountryId && world.some((item) => item.id === country.territorialDisputeCountryId)) {
         rels[country.territorialDisputeCountryId] = 'hostile'
         const disputedCountry = world.find((item) => item.id === country.territorialDisputeCountryId)
@@ -200,7 +200,7 @@ export default function World() {
       Object.entries(rels).forEach(([id, rel]) => setRelation(id, rel))
 
       setLoadingMsg(isFrench ? 'Interception des premières dépêches d\'actualité...' : 'Intercepting global intelligence dispatches...')
-      const events = await generateTurnEvents(groqApiKey, {
+      const events = await generateTurnEvents({
         playerCountry: country,
         worldCountries: world,
         relations: rels,
@@ -226,7 +226,7 @@ export default function World() {
     try {
       const result = daysToSkip < 7
         ? { interruptedEarly: false, statDeltas: {}, events: [], incomingDiplomacy: [] }
-        : await simulateTimePassage(groqApiKey, {
+        : await simulateTimePassage({
           playerCountry: country,
           worldCountries,
           relations,
@@ -329,7 +329,7 @@ export default function World() {
     setDiplomacyHistory(fromCouncil ? [...previousTalks, playerMessage].slice(-20) : (history) => [...history, playerMessage])
 
     try {
-      const result = await simulateDiplomacy(groqApiKey, {
+      const result = await simulateDiplomacy({
         playerCountry: country,
         targetCountry: target,
         action: message,
@@ -357,6 +357,7 @@ export default function World() {
         type: 'diplomatic',
         turn: day,
       })
+      if (!fromCouncil) advanceDays(1)
       return { targetName: target.name, response: result.response }
     } catch (err) {
       setDiplomacyHistory((h) => [...h, { role: 'error', text: err.message }])
@@ -455,9 +456,9 @@ export default function World() {
 
   // ─── Main World UI ────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex flex-col bg-[#050814] text-white">
+    <div className="relative flex h-dvh flex-col overflow-hidden bg-[#050814] text-white">
       {/* Header */}
-      <header className="glass border-b border-slate-800/80 px-4 md:px-6 py-3 flex flex-wrap items-center justify-between gap-y-3 flex-shrink-0 z-30 bg-slate-950/70">
+      <header className="relative z-30 flex flex-shrink-0 flex-wrap items-center justify-between gap-y-3 border-b border-slate-700/80 bg-slate-950/85 px-4 py-3 backdrop-blur-xl md:px-6">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/')}
@@ -679,10 +680,23 @@ export default function World() {
         </div>
       </header>
 
+      <WorldMap
+        worldCountries={worldCountries}
+        relations={relations}
+        playerCountry={country}
+        onSelectCountry={handleOpenDiplomacy}
+        focusedCountry={focusedCountry}
+        worldMode={worldMode}
+        isFrench={isFrench}
+        isBackground
+      />
+
       {/* Main Container */}
-      <div className="flex-1 flex overflow-visible md:overflow-hidden">
+      <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 overflow-hidden">
         {/* Left Playfield */}
-        <div className="flex-1 flex flex-col overflow-visible md:overflow-auto p-3 sm:p-4 md:p-6 space-y-4">
+        <div className={`pointer-events-auto absolute left-2 right-2 min-w-0 space-y-3 overflow-y-auto border border-slate-600/80 bg-slate-950/88 p-2.5 shadow-xl backdrop-blur-lg sm:left-3 sm:right-3 sm:top-3 sm:p-4 ${isMapOverview
+          ? 'top-2 max-h-[28vh] sm:max-h-[32vh] md:relative md:inset-auto md:h-full md:max-h-none md:w-[min(26rem,34vw)] md:flex-none md:space-y-4 md:border-y-0 md:border-l-0 md:border-r md:border-slate-600/80 md:bg-slate-950/78 md:p-4'
+          : 'bottom-2 top-2 max-h-none space-y-4 bg-slate-950/94 sm:bottom-3 md:relative md:inset-auto md:h-full md:w-full md:flex-1 md:max-w-5xl md:space-y-4 md:bg-slate-950/92 md:p-5'} ${isMapOverview ? '' : 'mx-auto md:mr-auto'} `}>
           {/* Active Scenario Banner */}
           {country.initialScenario && (
             <div className="px-4 py-2.5 rounded-2xl border border-red-500/30 bg-red-950/20 flex items-center justify-between gap-3 text-xs">
@@ -942,21 +956,6 @@ export default function World() {
             )}
           </div>
 
-          {/* VIEW: Interactive World Map */}
-          {viewMode === 'map' && (
-            <div className="space-y-3">
-              <WorldMap
-                worldCountries={worldCountries}
-                relations={relations}
-                playerCountry={country}
-                onSelectCountry={handleOpenDiplomacy}
-                focusedCountry={focusedCountry}
-                worldMode={worldMode}
-                isFrench={isFrench}
-              />
-            </div>
-          )}
-
           {/* VIEW: Global Press Window */}
           {viewMode === 'press' && (
             <PressWindow
@@ -987,7 +986,7 @@ export default function World() {
         </div>
 
         {/* Right Sidebar */}
-        <div className="w-80 md:w-96 flex-shrink-0 border-l border-slate-800/80 flex flex-col bg-slate-950/60 backdrop-blur-xl">
+        {isMapOverview && <div className="pointer-events-auto absolute bottom-2 left-2 right-2 z-20 flex h-[24vh] min-h-32 flex-col border border-slate-600/80 bg-slate-950/90 shadow-xl backdrop-blur-xl md:relative md:inset-auto md:h-full md:min-h-0 md:w-80 md:flex-shrink-0 md:border-y-0 md:border-r-0 md:border-slate-600/80 md:bg-slate-950/88 lg:w-96">
           {/* Sidebar Tabs */}
           <div className="flex border-b border-slate-800/80 bg-slate-950/80">
             {SIDEBAR_TABS.map((t) => (
@@ -1106,7 +1105,7 @@ export default function World() {
               </div>
             )}
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* Cloud & Local Saves Modal */}

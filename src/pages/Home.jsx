@@ -17,28 +17,22 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden bg-[#050914]">
-      {/* Animated gradient background */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {/* Grid */}
+    <div className="relative flex min-h-[100svh] flex-col items-center justify-center overflow-x-clip bg-[#07100d] px-4 py-16 text-white sm:px-6">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
           className="absolute inset-0"
           style={{
             backgroundImage:
-              'linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px)',
-            backgroundSize: '70px 70px',
+              'linear-gradient(rgba(132,160,134,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(132,160,134,0.055) 1px, transparent 1px), linear-gradient(135deg, #07100d 0%, #0c1712 52%, #12140f 100%)',
+            backgroundSize: '56px 56px, 56px 56px, cover',
           }}
         />
-        {/* Glow orbs */}
-        <div className="absolute top-1/4 left-1/3 w-[500px] h-[500px] bg-blue-700/8 rounded-full blur-[120px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-amber-600/8 rounded-full blur-[80px]" />
-        <div className="absolute top-3/4 left-1/5 w-64 h-64 bg-purple-700/5 rounded-full blur-[100px]" />
       </div>
 
       {/* Top right settings */}
       <button
         onClick={() => setSettingsOpen(true)}
-        className="absolute top-5 right-5 z-20 flex items-center gap-2 px-3 py-2 glass rounded-xl border border-slate-700/60 text-slate-400 hover:text-white hover:border-slate-500 transition-all text-xs"
+        className="absolute right-4 top-4 z-20 flex min-h-11 items-center gap-2 border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-xs text-slate-300 transition-colors hover:border-amber-500/50 hover:text-white sm:right-6 sm:top-6"
       >
         <Settings size={14} />
         <span className="hidden sm:inline">{t('home_settings', lang)}</span>
@@ -49,31 +43,31 @@ export default function Home() {
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7, ease: 'easeOut' }}
-        className="text-center z-10 px-6 max-w-2xl w-full"
+        className="z-10 w-full max-w-2xl px-0 text-center sm:px-6"
       >
         {/* Globe icon */}
         <motion.div
           animate={{ rotate: [0, 4, -4, 0], scale: [1, 1.04, 1] }}
           transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
-          className="text-[80px] md:text-[96px] mb-6 leading-none select-none"
+          className="mb-5 select-none text-6xl leading-none sm:text-7xl md:mb-6 md:text-8xl"
           style={{ filter: 'drop-shadow(0 0 40px rgba(245,158,11,0.35))' }}
         >
           🌍
         </motion.div>
 
         {/* Title */}
-        <h1 className="font-display text-5xl md:text-7xl font-extrabold text-gradient-gold mb-3 tracking-widest uppercase">
+        <h1 className="font-display mb-3 text-4xl font-extrabold uppercase text-gradient-gold sm:text-5xl md:text-6xl">
           {t('home_title', lang)}
         </h1>
-        <p className="text-slate-300 text-lg md:text-xl mb-2 font-light tracking-wide">
+        <p className="mb-2 text-base font-light text-slate-200 sm:text-lg md:text-xl">
           {t('home_tagline', lang)}
         </p>
-        <p className="text-slate-500 text-xs md:text-sm mb-10">
+        <p className="mb-8 text-xs text-slate-400 sm:mb-10 sm:text-sm">
           {t('home_subtitle', lang)}
         </p>
 
         {/* Feature pills */}
-        <div className="flex flex-wrap justify-center gap-2.5 mb-10">
+        <div className="mb-8 flex flex-wrap justify-center gap-2 sm:mb-10">
           {[
             { icon: <Globe size={13} />, key: 'home_feat_map' },
             { icon: <Sword size={13} />, key: 'home_feat_diplo' },
@@ -82,7 +76,7 @@ export default function Home() {
           ].map(({ icon, key }) => (
             <span
               key={key}
-              className="flex items-center gap-1.5 text-xs text-slate-300 border border-slate-800/80 glass rounded-full px-3.5 py-1.5 shadow-sm"
+              className="flex items-center gap-1.5 border border-slate-700/80 bg-slate-950/55 px-3 py-2 text-xs text-slate-300"
             >
               {icon} {t(key, lang)}
             </span>
@@ -96,7 +90,7 @@ export default function Home() {
             whileHover={{ scale: 1.04, boxShadow: '0 0 30px rgba(59,130,246,0.4)' }}
             whileTap={{ scale: 0.96 }}
             onClick={() => { resetGame(); navigate('/mode-select') }}
-            className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-2xl transition-all text-sm md:text-base shadow-xl border border-blue-500/50"
+            className="min-h-12 w-full border border-emerald-400/50 bg-emerald-700 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-emerald-600 sm:w-auto sm:px-8 sm:py-4 sm:text-base"
           >
             {t('home_new_nation', lang)}
           </motion.button>
@@ -107,7 +101,7 @@ export default function Home() {
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
               onClick={() => navigate(phase === 'world' ? '/world' : '/create')}
-              className="w-full sm:w-auto px-8 py-4 glass border border-blue-500/30 text-blue-300 hover:text-white font-semibold rounded-2xl transition-all text-sm md:text-base"
+              className="min-h-12 w-full border border-amber-500/40 bg-amber-950/30 px-6 py-3 text-sm font-semibold text-amber-100 transition-colors hover:bg-amber-900/40 sm:w-auto sm:px-8 sm:py-4 sm:text-base"
             >
               {t('home_continue', lang)} {country.flag} {country.name}
             </motion.button>
@@ -118,7 +112,7 @@ export default function Home() {
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
             onClick={() => setCloudModalOpen(true)}
-            className="w-full sm:w-auto px-5 py-4 glass border border-slate-700/60 hover:border-slate-500 text-slate-300 hover:text-white font-medium rounded-2xl transition-all text-sm flex items-center justify-center gap-2"
+            className="flex min-h-12 w-full items-center justify-center gap-2 border border-slate-700/80 bg-slate-950/60 px-5 py-3 text-sm font-medium text-slate-300 transition-colors hover:border-slate-500 hover:text-white sm:w-auto sm:py-4"
           >
             <Cloud size={15} className="text-blue-400" /> {t('home_saves', lang)}
           </motion.button>
@@ -130,7 +124,7 @@ export default function Home() {
       <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       {/* Version footer */}
-      <div className="absolute bottom-5 text-[11px] text-slate-700">
+      <div className="relative z-10 mt-10 text-center text-[11px] text-slate-500">
         {t('home_version', lang)}
       </div>
     </div>
