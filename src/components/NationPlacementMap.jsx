@@ -1,5 +1,6 @@
-import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps'
-import { MapPin } from 'lucide-react'
+import { useState } from 'react'
+import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps'
+import { MapPin, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
 
 const REAL_MAP = '/world-countries.json'
 const FICTIONAL_MAP = '/fictional-world.json'
@@ -13,6 +14,11 @@ function normalizeName(value = '') {
 
 export default function NationPlacementMap({ coordinates, worldCountries, isFictional, isFrench, selectedCountryId, onChange, onCountrySelect }) {
   const geographyUrl = isFictional ? FICTIONAL_MAP : REAL_MAP
+  const [mapPosition, setMapPosition] = useState({ coordinates: [0, 0], zoom: 1 })
+  const changeZoom = (amount) => setMapPosition((position) => ({
+    ...position,
+    zoom: Math.max(1, Math.min(4, Number((position.zoom + amount).toFixed(1)))),
+  }))
   const handleMapClick = (event, featureName = null) => {
     const svg = event.currentTarget.ownerSVGElement || event.currentTarget
     if (!svg) return
@@ -20,8 +26,10 @@ export default function NationPlacementMap({ coordinates, worldCountries, isFict
     const viewBox = svg.viewBox.baseVal
     const x = ((event.clientX - bounds.left) / bounds.width) * viewBox.width
     const y = ((event.clientY - bounds.top) / bounds.height) * viewBox.height
-    const longitude = ((x - viewBox.width / 2) / SCALE) * (180 / Math.PI)
-    const latitude = ((viewBox.height / 2 - y) / SCALE) * (180 / Math.PI)
+    const mapX = viewBox.width / 2 + (x - viewBox.width / 2) / mapPosition.zoom
+    const mapY = viewBox.height / 2 + (y - viewBox.height / 2) / mapPosition.zoom
+    const longitude = mapPosition.coordinates[0] + ((mapX - viewBox.width / 2) / SCALE) * (180 / Math.PI)
+    const latitude = mapPosition.coordinates[1] + ((viewBox.height / 2 - mapY) / SCALE) * (180 / Math.PI)
     if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || Math.abs(longitude) > 180 || Math.abs(latitude) > 85) return
 
     const aliases = { unitedstatesofamerica: 'unitedstates', demrepcongo: 'democraticrepublicofthecongo', czechia: 'czechrepublic', macedonia: 'northmacedonia', eswatini: 'swaziland' }
@@ -52,7 +60,12 @@ export default function NationPlacementMap({ coordinates, worldCountries, isFict
         <MapPin size={16} className="shrink-0 text-emerald-300" />
       </div>
 
-      <div className="overflow-hidden border border-slate-800 bg-[#0a100e]">
+      <div className="relative overflow-hidden border-2 border-emerald-500/50 bg-[#020b12] shadow-[inset_0_0_32px_rgba(16,185,129,0.12)]">
+        <div className="absolute right-2 top-2 z-10 flex gap-1 rounded-lg border border-slate-500/70 bg-slate-950/90 p-1 shadow-xl">
+          <button type="button" onClick={() => changeZoom(0.5)} className="grid h-9 w-9 place-items-center rounded-md text-white hover:bg-emerald-600" aria-label={isFrench ? 'Agrandir la carte' : 'Zoom in'}><ZoomIn size={17} /></button>
+          <button type="button" onClick={() => changeZoom(-0.5)} className="grid h-9 w-9 place-items-center rounded-md text-white hover:bg-emerald-600" aria-label={isFrench ? 'Réduire la carte' : 'Zoom out'}><ZoomOut size={17} /></button>
+          <button type="button" onClick={() => setMapPosition({ coordinates: [0, 0], zoom: 1 })} className="grid h-9 w-9 place-items-center rounded-md text-white hover:bg-emerald-600" aria-label={isFrench ? 'Réinitialiser la carte' : 'Reset map'}><RotateCcw size={16} /></button>
+        </div>
         <ComposableMap
           width={WIDTH}
           height={HEIGHT}
@@ -63,6 +76,7 @@ export default function NationPlacementMap({ coordinates, worldCountries, isFict
           role="img"
           aria-label={isFrench ? 'Carte interactive pour choisir un emplacement' : 'Interactive map to choose a location'}
         >
+          <ZoomableGroup center={mapPosition.coordinates} zoom={mapPosition.zoom} minZoom={1} maxZoom={4} onMoveEnd={(position) => setMapPosition({ coordinates: position.coordinates, zoom: position.zoom })}>
           <Geographies geography={geographyUrl}>
             {({ geographies }) => {
               return (
@@ -76,26 +90,27 @@ export default function NationPlacementMap({ coordinates, worldCountries, isFict
                         handleMapClick(event, geography.properties?.name || null)
                       }}
                       style={{
-                        default: { fill: selectedCountryId && selectedCountryId === (worldCountries || []).find((country) => normalizeName(country.name) === normalizeName(geography.properties?.name))?.id ? '#2563eb' : (isFictional ? '#263a36' : '#17251e'), stroke: '#53655a', strokeWidth: 0.55, outline: 'none' },
-                        hover: { fill: isFictional ? '#3a594b' : '#294335', stroke: '#a9c3a5', strokeWidth: 0.85, outline: 'none' },
-                        pressed: { fill: '#42664f', outline: 'none' },
+                        default: { fill: selectedCountryId && selectedCountryId === (worldCountries || []).find((country) => normalizeName(country.name) === normalizeName(geography.properties?.name))?.id ? '#f59e0b' : (isFictional ? '#0f766e' : '#166534'), stroke: '#d1fae5', strokeWidth: 0.9, outline: 'none' },
+                        hover: { fill: '#38bdf8', stroke: '#ffffff', strokeWidth: 1.35, outline: 'none' },
+                        pressed: { fill: '#fbbf24', stroke: '#ffffff', strokeWidth: 1.5, outline: 'none' },
                       }}
                     />
                   ))}
                   <Marker coordinates={coordinates}>
-                    <circle r={9} fill="rgba(248,113,113,0.18)" />
-                    <circle r={3.5} fill="#f0b76a" stroke="#fff3d8" strokeWidth={1.2} />
+                    <circle r={11} fill="rgba(251,191,36,0.28)" stroke="#fef3c7" strokeWidth={0.8} />
+                    <circle r={4.5} fill="#f59e0b" stroke="#ffffff" strokeWidth={1.8} />
                   </Marker>
                 </g>
               )
             }}
           </Geographies>
+          </ZoomableGroup>
         </ComposableMap>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
         <span>{isFrench ? 'Coordonnées' : 'Coordinates'}: {coordinates[1].toFixed(2)}°, {coordinates[0].toFixed(2)}°</span>
-        <span>{isFrench ? 'Pin ambre · territoire occupé signalé' : 'Amber pin · occupied territory is flagged'}</span>
+        <span>{isFrench ? `Zoom ${Math.round(mapPosition.zoom * 100)} % · molette ou pincement` : `Zoom ${Math.round(mapPosition.zoom * 100)}% · wheel or pinch`}</span>
       </div>
     </section>
   )

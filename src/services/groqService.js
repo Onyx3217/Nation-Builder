@@ -1,3 +1,7 @@
+import { parseTimeSimulation } from '../ai/schemas'
+import { resolveTurnProposal } from '../engine/turnEngine'
+import { TIME_SIMULATION_CONTRACT, TIME_SIMULATION_PROMPT_VERSION } from '../ai/prompts/timeSimulation.v1'
+
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 // Active candidate models in order of priority:
@@ -547,6 +551,7 @@ export async function simulateTimePassage(apiKey, { playerCountry, worldCountrie
     {
       role: 'system',
       content: `${NO_LIMIT_PROMPT} You are a grounded macroeconomic and geopolitical simulation engine. ${worldRule}
+Prompt version: ${TIME_SIMULATION_PROMPT_VERSION}. ${TIME_SIMULATION_CONTRACT}
     The player has chosen to advance ${daysToSkip} days (from Day ${currentDay} to Day ${currentDay + daysToSkip}). Treat days as calendar time, not turns. A one-day advance is normally uneventful; longer periods may contain more developments, but do not force news into quiet periods.
 Respond in ${isFrench ? 'FRENCH (Français)' : 'ENGLISH'}.
 
@@ -615,8 +620,18 @@ Simulate the timeframe and evaluate if the crisis brake is triggered.`,
 
   try {
     const maxTokens = daysToSkip >= 3650 ? 5000 : daysToSkip >= 365 ? 3800 : 2500
-    const raw = await groqChat(apiKey, messages, { temperature: 0.75, maxTokens })
-    const parsed = extractJson(raw, null)
+    let raw = await groqChat(apiKey, messages, { temperature: 0.75, maxTokens })
+    let parsed = parseTimeSimulation(extractJson(raw, null))
+    // A malformed structured reply is retried once; it is never treated as game state.
+    if (!parsed) {
+      raw = await groqChat(apiKey, [...messages, { role: 'user', content: 'Your prior response did not match the JSON schema. Return the complete schema as valid JSON only.' }], { temperature: 0.3, maxTokens })
+      parsed = parseTimeSimulation(extractJson(raw, null))
+    }
+    parsed = resolveTurnProposal(parsed, {
+      currentDay,
+      daysToSkip,
+      countryIds: worldCountries.map((country) => country.id),
+    })
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       const requestedDays = Math.max(1, Number(daysToSkip) || 1)
       const interruptedEarly = requestedDays > 1 && Boolean(parsed.interruptedEarly)

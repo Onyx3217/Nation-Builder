@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from 'react'
+import { useState, useMemo, useEffect, memo } from 'react'
 import {
   ComposableMap,
   Geographies,
@@ -106,6 +106,18 @@ const relationColorMap = {
   war: { fill: '#dc2626', ring: '#ef4444', text: 'text-red-500', label: 'At War' },
 }
 
+function normalizeCountryName(value = '') {
+  const normalized = String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '')
+  const aliases = {
+    unitedstatesofamerica: 'unitedstates',
+    demrepcongo: 'democraticrepublicofthecongo',
+    czechia: 'czechrepublic',
+    macedonia: 'northmacedonia',
+    eswatini: 'swaziland',
+  }
+  return aliases[normalized] || normalized
+}
+
 function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, focusedCountry, worldMode = 'real', isFrench = true }) {
   const [position, setPosition] = useState({ coordinates: [10, 20], zoom: 1 })
   const [hoveredCountry, setHoveredCountry] = useState(null)
@@ -168,11 +180,13 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
   }, [worldCountries, isFictionalWorld])
 
   // Center on focused country if passed as prop
-  useMemo(() => {
+  useEffect(() => {
     if (focusedCountry?.coordinates) {
       setPosition({ coordinates: focusedCountry.coordinates, zoom: 2.5 })
     }
   }, [focusedCountry])
+
+  const countryByMapName = useMemo(() => new Map(indexedWorldCountries.map((country) => [normalizeCountryName(country.name), country])), [indexedWorldCountries])
 
   return (
     <div className="relative w-full rounded-3xl overflow-hidden glass border border-slate-700/80 flex flex-col bg-[#030611] shadow-2xl">
@@ -220,7 +234,7 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
       </div>
 
       {/* Interactive Canvas */}
-      <div className="relative w-full h-[520px]">
+      <div className="relative w-full h-[58dvh] min-h-[420px] lg:h-[calc(100dvh-13rem)] lg:min-h-[560px]">
         {/* Floating Dossier on Hover / Selected */}
         <AnimatePresence>
           {hoveredCountry && (
@@ -324,27 +338,33 @@ function WorldMap({ worldCountries, relations, playerCountry, onSelectCountry, f
             {/* Earth Continents Geometry */}
             <Geographies geography={geographyUrl}>
               {({ geographies }) =>
-                geographies.map((geo) => (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    style={{
-                      default: {
-                        fill: isFictionalWorld ? '#263a36' : '#0f172a',
-                        stroke: isFictionalWorld ? 'rgba(199, 180, 130, 0.38)' : 'rgba(255, 255, 255, 0.12)',
-                        strokeWidth: 0.5,
-                        outline: 'none',
-                      },
-                      hover: {
-                        fill: isFictionalWorld ? '#36564c' : '#1e293b',
-                        stroke: isFictionalWorld ? '#d6b86a' : '#3b82f6',
-                        strokeWidth: 1,
-                        outline: 'none',
-                      },
-                      pressed: { fill: '#1e3a8a', outline: 'none' },
-                    }}
-                  />
-                ))
+                geographies.map((geo) => {
+                  const mapCountry = countryByMapName.get(normalizeCountryName(geo.properties?.name))
+                  const relation = mapCountry?.id === playerCountry?.id || normalizeCountryName(mapCountry?.name) === normalizeCountryName(playerCountry?.name)
+                    ? 'player'
+                    : (mapCountry ? (relations[mapCountry.id] || 'neutral') : 'neutral')
+                  const colors = relationColorMap[relation] || relationColorMap.neutral
+                  return (
+                    <Geography
+                      key={geo.rsmKey}
+                      geography={geo}
+                      onMouseEnter={() => mapCountry && setHoveredCountry(mapCountry)}
+                      onMouseLeave={() => setHoveredCountry(null)}
+                      onClick={() => mapCountry && onSelectCountry(mapCountry)}
+                      style={{
+                        default: {
+                          fill: mapCountry ? colors.fill : (isFictionalWorld ? '#164e63' : '#172033'),
+                          fillOpacity: mapCountry ? 0.82 : 0.72,
+                          stroke: mapCountry ? 'rgba(255,255,255,0.50)' : 'rgba(148,163,184,0.28)',
+                          strokeWidth: mapCountry ? 0.8 : 0.4,
+                          outline: 'none',
+                        },
+                        hover: { fill: '#fbbf24', fillOpacity: 1, stroke: '#ffffff', strokeWidth: 1.35, outline: 'none' },
+                        pressed: { fill: '#f8fafc', outline: 'none' },
+                      }}
+                    />
+                  )
+                })
               }
             </Geographies>
 
